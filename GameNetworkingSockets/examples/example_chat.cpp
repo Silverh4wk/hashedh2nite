@@ -357,7 +357,7 @@ private:
             if ( strcmp(cmd, "/ready" ) == 0 )
             {
                 numReadied++;
-                // hard coded total num of players for now
+                // hard coded num of players for now
                 SendStringToAllClients(
                         ("A player has readied up " + std::to_string(5 - numReadied) + " remain.").c_str()
                         );
