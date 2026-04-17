@@ -1,9 +1,9 @@
 {
 	"InstallScripts" : 
 	[
-		"/home/silver/hashedh2nite/GameNetworkingSockets/build/cmake_install.cmake",
-		"/home/silver/hashedh2nite/GameNetworkingSockets/build/examples/cmake_install.cmake",
-		"/home/silver/hashedh2nite/GameNetworkingSockets/build/src/cmake_install.cmake"
+		"/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/cmake_install.cmake",
+		"/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/examples/cmake_install.cmake",
+		"/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/src/cmake_install.cmake"
 	],
 	"Parallel" : false
 }

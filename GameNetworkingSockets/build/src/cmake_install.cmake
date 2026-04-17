@@ -1,4 +1,4 @@
-# Install script for directory: /home/silver/hashedh2nite/GameNetworkingSockets/src
+# Install script for directory: /run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/src
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
@@ -49,7 +49,7 @@ if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT
          FILE "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/libGameNetworkingSockets.so"
          RPATH "")
   endif()
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" TYPE SHARED_LIBRARY FILES "/home/silver/hashedh2nite/GameNetworkingSockets/build/bin/libGameNetworkingSockets.so")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" TYPE SHARED_LIBRARY FILES "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/bin/libGameNetworkingSockets.so")
   if(EXISTS "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/libGameNetworkingSockets.so" AND
      NOT IS_SYMLINK "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/libGameNetworkingSockets.so")
     if(CMAKE_INSTALL_DO_STRIP)
@@ -62,18 +62,18 @@ if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT
 endif()
 
 if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" TYPE STATIC_LIBRARY FILES "/home/silver/hashedh2nite/GameNetworkingSockets/build/src/libGameNetworkingSockets_s.a")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib" TYPE STATIC_LIBRARY FILES "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/src/libGameNetworkingSockets_s.a")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/include/GameNetworkingSockets" TYPE DIRECTORY FILES "/home/silver/hashedh2nite/GameNetworkingSockets/src/../include/")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/include/GameNetworkingSockets" TYPE DIRECTORY FILES "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/src/../include/")
 endif()
 
 if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT)
   if(EXISTS "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets/GameNetworkingSockets.cmake")
     file(DIFFERENT _cmake_export_file_changed FILES
          "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets/GameNetworkingSockets.cmake"
-         "/home/silver/hashedh2nite/GameNetworkingSockets/build/src/CMakeFiles/Export/9869b6637b2a332ef2a5e0b21a9fb29e/GameNetworkingSockets.cmake")
+         "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/src/CMakeFiles/Export/9869b6637b2a332ef2a5e0b21a9fb29e/GameNetworkingSockets.cmake")
     if(_cmake_export_file_changed)
       file(GLOB _cmake_old_config_files "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets/GameNetworkingSockets-*.cmake")
       if(_cmake_old_config_files)
@@ -86,19 +86,19 @@ if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT
     endif()
     unset(_cmake_export_file_changed)
   endif()
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets" TYPE FILE FILES "/home/silver/hashedh2nite/GameNetworkingSockets/build/src/CMakeFiles/Export/9869b6637b2a332ef2a5e0b21a9fb29e/GameNetworkingSockets.cmake")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets" TYPE FILE FILES "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/src/CMakeFiles/Export/9869b6637b2a332ef2a5e0b21a9fb29e/GameNetworkingSockets.cmake")
   if(CMAKE_INSTALL_CONFIG_NAME MATCHES "^([Rr][Ee][Ll][Ww][Ii][Tt][Hh][Dd][Ee][Bb][Ii][Nn][Ff][Oo])$")
-    file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets" TYPE FILE FILES "/home/silver/hashedh2nite/GameNetworkingSockets/build/src/CMakeFiles/Export/9869b6637b2a332ef2a5e0b21a9fb29e/GameNetworkingSockets-relwithdebinfo.cmake")
+    file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets" TYPE FILE FILES "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/src/CMakeFiles/Export/9869b6637b2a332ef2a5e0b21a9fb29e/GameNetworkingSockets-relwithdebinfo.cmake")
   endif()
 endif()
 
 if(CMAKE_INSTALL_COMPONENT STREQUAL "Unspecified" OR NOT CMAKE_INSTALL_COMPONENT)
-  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets" TYPE FILE FILES "/home/silver/hashedh2nite/GameNetworkingSockets/build/src/GameNetworkingSocketsConfig.cmake")
+  file(INSTALL DESTINATION "${CMAKE_INSTALL_PREFIX}/lib/cmake/GameNetworkingSockets" TYPE FILE FILES "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/src/GameNetworkingSocketsConfig.cmake")
 endif()
 
 string(REPLACE ";" "\n" CMAKE_INSTALL_MANIFEST_CONTENT
        "${CMAKE_INSTALL_MANIFEST_FILES}")
 if(CMAKE_INSTALL_LOCAL_ONLY)
-  file(WRITE "/home/silver/hashedh2nite/GameNetworkingSockets/build/src/install_local_manifest.txt"
+  file(WRITE "/run/media/GAMING/Projects/C++ Code/Social-Deduction/GameNetworkingSockets/build/src/install_local_manifest.txt"
      "${CMAKE_INSTALL_MANIFEST_CONTENT}")
 endif()
