@@ -15,6 +15,7 @@
 #include <queue>
 #include <map>
 #include <cctype>
+#include <sstream>
 
 #include <steam/steamnetworkingsockets.h>
 #include <steam/isteamnetworkingutils.h>
@@ -134,6 +135,30 @@ static void ShutdownSteamDatagramConnectionSockets()
 	#endif
 }
 
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Player 
+//
+//
+/////////////////////////////////////////////////////////////////////////////
+
+class Player
+{
+public:
+    //Player(std::string name) : m_name(name) {}
+    void setName( std::string name) { m_name = name; }
+    void setReady( bool ready ) { m_ready = ready; }
+    bool isReady() const { return m_ready; }
+
+    const std::string& getName() const { return m_name; }
+
+private:
+    std::string m_name;
+    bool m_ready = false;
+};
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // Non-blocking console user input.  Sort of.
@@ -231,12 +256,15 @@ bool LocalUserInput_GetNext( std::string &result )
 class ChatServer
 {
 public:
-	void Run( uint16 nPort )
+    int numReadied = 0; // u can move it to private it if u want idc much
+
+    void Run( uint16 nPort, size_t mxplayers )
 	{
 		// Select instance to use.  For now we'll always use the default.
 		// But we could use SteamGameServerNetworkingSockets() on Steam.
-		m_pInterface = SteamNetworkingSockets();
-
+	    
+	        m_pInterface = SteamNetworkingSockets();
+		m_maxPlayers = mxplayers;
 		// Start listening
 		SteamNetworkingIPAddr serverLocalAddr;
 		serverLocalAddr.Clear();
@@ -281,15 +309,22 @@ public:
 		m_pInterface->DestroyPollGroup( m_hPollGroup );
 		m_hPollGroup = k_HSteamNetPollGroup_Invalid;
 	}
+
+    const size_t GetMaxPlayers( void )
+	{
+	    return m_maxPlayers;
+	}
+    
 private:
 
 	HSteamListenSocket m_hListenSock;
 	HSteamNetPollGroup m_hPollGroup;
 	ISteamNetworkingSockets *m_pInterface;
-
+        size_t m_maxPlayers;
 	struct Client_t
 	{
 		std::string m_sNick;
+	        Player player;
 	};
 
 	std::map< HSteamNetConnection, Client_t > m_mapClients;
@@ -307,11 +342,11 @@ private:
 				SendStringToClient( c.first, str );
 		}
 	}
-
+    
 	void PollIncomingMessages()
 	{
 		char temp[ 1024 ];
-        static int numReadied = 0;
+		
 
 		while ( !g_bQuit )
 		{
@@ -341,39 +376,47 @@ private:
 				const char *nick = cmd+5;
 				while ( isspace(*nick) )
 					++nick;
-
+				
 				// Let everybody else know they changed their name
-				sprintf( temp, "%s shall henceforth be known as %s", itClient->second.m_sNick.c_str(), nick );
+				itClient->second.player.setName(nick);
+				sprintf( temp, "%s shall henceforth be known as %s", itClient->second.player.getName().c_str(), nick );
+				itClient->second.player.setName(nick);
 				SendStringToAllClients( temp, itClient->first );
-
+				
 				// Respond to client
 				sprintf( temp, "Ye shall henceforth be known as %s", nick );
 				SendStringToClient( itClient->first, temp );
 
-				// Actually change their name
+				// Actually change their name (We getting rid of this yes ?)
                 SetClientNick( itClient->first, nick );
                 continue;
             }
-            if ( strcmp(cmd, "/ready" ) == 0 )
-            {
-                numReadied++;
-                // hard coded num of players for now
-                SendStringToAllClients(
-                        ("A player has readied up " + std::to_string(5 - numReadied) + " remain.").c_str()
-                        );
-
-            }
-
-
-            // Assume it's just a ordinary chat message, dispatch to everybody else
-            sprintf( temp, "%s: %s", itClient->second.m_sNick.c_str(), cmd );
-            SendStringToAllClients( temp, itClient->first );
-        }
-    }
+			if ( (strcmp(cmd, "/ready" )) == 0  && !itClient->second.player.isReady() )
+			{
+			    itClient->second.player.setReady(true);
+			    numReadied++;
+			    //(CHANGED) hard coded num of players for now
+			    SendStringToAllClients(
+				(itClient->second.player.getName() + "has readied up " + std::to_string(GetMaxPlayers() - numReadied) + " remain.").c_str() );
+			}
+			else 
+			{
+			    SendStringToClient(itClient->first, "Already ready..");
+			}
+			// if no. of players == lobby players, start game..
+			if (numReadied == m_maxPlayers)
+			{
+			    SendStringToAllClients("All players ready! Starting game...");
+			}
+			
+			// Assume it's just a ordinary chat message, dispatch to everybody else
+			sprintf( temp, "%s: %s", itClient->second.m_sNick.c_str(), cmd );
+			SendStringToAllClients( temp, itClient->first );
+		}
+	}
 
     void PollLocalUserInput()
     {
-        static int numReadied = 0;
         std::string cmd;
         while ( !g_bQuit && LocalUserInput_GetNext( cmd ))
         {
@@ -509,7 +552,7 @@ private:
                     // Send them a welcome message
                     sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 
                     SendStringToClient( pInfo->m_hConn, temp ); 
-
+		    
                     // Also send them a list of everybody who is already connected
                     if ( m_mapClients.empty() )
                     {
@@ -591,11 +634,11 @@ class ChatClient
             }
         }
     private:
-
+    
         HSteamNetConnection m_hConnection;
         ISteamNetworkingSockets *m_pInterface;
-
-        void PollIncomingMessages()
+       
+       void PollIncomingMessages()
         {
             while ( !g_bQuit )
             {
@@ -729,6 +772,8 @@ void PrintUsageAndExit( int rc = 1 )
     exit(rc);
 }
 
+
+
 int main( int argc, const char *argv[] )
 {
     bool bServer = false;
@@ -745,9 +790,10 @@ int main( int argc, const char *argv[] )
                 bClient = true;
                 continue;
             }
+	    
             if ( !strcmp( argv[i], "server" ) )
             {
-                bServer = true;
+		bServer = true;
                 continue;
             }
         }
@@ -761,7 +807,6 @@ int main( int argc, const char *argv[] )
                 FatalError( "Invalid port %d", nPort );
             continue;
         }
-
         // Anything else, must be server address to connect to
         if ( bClient && addrServer.IsIPv6AllZeros() )
         {
@@ -781,7 +826,7 @@ int main( int argc, const char *argv[] )
     // Create client and server sockets
     InitSteamDatagramConnectionSockets();
     LocalUserInput_Init();
-
+    
     if ( bClient )
     {
         ChatClient client;
@@ -789,8 +834,28 @@ int main( int argc, const char *argv[] )
     }
     else
     {
-        ChatServer server;
-        server.Run( (uint16)nPort );
+	size_t n_players = 0;
+	// Lobby Setup
+	Printf("Set the number of players for this session:\n");
+	std::string cmd;
+	while ( !g_bQuit )
+	{
+	    if ( LocalUserInput_GetNext(cmd) )
+	    {
+		std::istringstream iss(cmd);
+		if (iss >> n_players)
+		{
+		    Printf("Number of players: %zu\n", n_players);
+		    break;
+		}
+		else
+		{
+		    Printf("Invalid input. Enter a number.\n");
+		}
+	    }
+	}
+	ChatServer server;
+        server.Run( (uint16)nPort, n_players );
     }
 
     ShutdownSteamDatagramConnectionSockets();
