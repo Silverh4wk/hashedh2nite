@@ -1,6 +1,0 @@
-# Hashes of file build rules.
-db8c22b0264bdbc95c4b4ae2fc0ae042 bin/trivial_signaling_server
-49c28d3cf5385c9818b28c228ccebe04 examples/CMakeFiles/trivial_signaling_server
-2ab2dced52393d75c9ff254cab127c0b src/steamnetworkingsockets_messages.pb.h
-5d280431cbfff4a6c1ca3b9b03b1a3f6 src/steamnetworkingsockets_messages_certs.pb.h
-8ed1948954331254587f22a868720d0d src/steamnetworkingsockets_messages_udp.pb.h
