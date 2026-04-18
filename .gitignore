@@ -1,0 +1,9 @@
+# Build dir
+/build/
+/build-*/
+
+# CMake files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
