@@ -8,6 +8,7 @@
 #include <string.h>
 #include <algorithm>
 #include <string>
+#include <termios.h> // for terminal/echo suppression
 #include <random>
 #include <chrono>
 #include <thread>
@@ -36,6 +37,25 @@
 //
 /////////////////////////////////////////////////////////////////////////////
 
+
+// check comment in main function
+// https://stackoverflow.com/questions/59922972/how-to-stop-echo-in-terminal-using-c
+struct termios orig_termios;
+
+void DisableEcho()
+{
+    tcgetattr(STDIN_FILENO, &orig_termios);
+
+    struct termios new_termios = orig_termios;
+    new_termios.c_lflag &= ~(ECHO); // disable echo
+
+    tcsetattr(STDIN_FILENO, TCSANOW, &new_termios);
+}
+
+void RestoreEcho()
+{
+    tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+}
 bool g_bQuit = false;
 
 SteamNetworkingMicroseconds g_logTimeZero;
@@ -314,104 +334,138 @@ public:
 	{
 	    return m_maxPlayers;
 	}
-    
+
+    void KickPlayerByName(const std::string& name)
+    {
+        // loop through clients and check their nick
+        for ( auto it = m_mapClients.begin(); it != m_mapClients.end(); it++ )
+        {
+            if ( it->second.m_sNick == name )
+            {
+                SendStringToClient(it->first, "You have been kicked. Goodbye Creature.");
+                // At some point probably use an exit code from here: https://partner.steamgames.com/doc/api/steamnetworkingtypes#ESteamNetConnectionEnd
+                // Unsure of the usage of the 4th argument (bEnableLinger)
+                m_pInterface->CloseConnection(it->first, 0, "Kicked", true);
+
+
+                SendStringToAllClients((name + " was kicked.").c_str());
+
+                m_mapClients.erase(it);
+                return;
+            }
+        }
+
+        Printf("Player not found.");
+    }
+
 private:
 
-	HSteamListenSocket m_hListenSock;
-	HSteamNetPollGroup m_hPollGroup;
-	ISteamNetworkingSockets *m_pInterface;
-        size_t m_maxPlayers;
-	struct Client_t
-	{
-		std::string m_sNick;
-	        Player player;
-	};
+    HSteamListenSocket m_hListenSock;
+    HSteamNetPollGroup m_hPollGroup;
+    ISteamNetworkingSockets *m_pInterface;
+    size_t m_maxPlayers;
+    struct Client_t
+    {
+        std::string m_sNick;
+        Player player;
+    };
 
-	std::map< HSteamNetConnection, Client_t > m_mapClients;
+    std::map< HSteamNetConnection, Client_t > m_mapClients;
 
-	void SendStringToClient( HSteamNetConnection conn, const char *str )
-	{
-		m_pInterface->SendMessageToConnection( conn, str, (uint32)strlen(str), k_nSteamNetworkingSend_Reliable, nullptr );
-	}
+    void SendStringToClient( HSteamNetConnection conn, const char *str )
+    {
+        m_pInterface->SendMessageToConnection( conn, str, (uint32)strlen(str), k_nSteamNetworkingSend_Reliable, nullptr );
+    }
 
-	void SendStringToAllClients( const char *str, HSteamNetConnection except = k_HSteamNetConnection_Invalid )
-	{
-		for ( auto &c: m_mapClients )
-		{
-			if ( c.first != except )
-				SendStringToClient( c.first, str );
-		}
-	}
-    
-	void PollIncomingMessages()
-	{
-		char temp[ 1024 ];
-		
+    void SendStringToAllClients( const char *str, HSteamNetConnection except = k_HSteamNetConnection_Invalid )
+    {
+        for ( auto &c: m_mapClients )
+        {
+            if ( c.first != except )
+                SendStringToClient( c.first, str );
+        }
+    }
 
-		while ( !g_bQuit )
-		{
-			ISteamNetworkingMessage *pIncomingMsg = nullptr;
-			int numMsgs = m_pInterface->ReceiveMessagesOnPollGroup( m_hPollGroup, &pIncomingMsg, 1 );
-			if ( numMsgs == 0 )
-				break;
-			if ( numMsgs < 0 )
-				FatalError( "Error checking for messages" );
-			assert( numMsgs == 1 && pIncomingMsg );
-			auto itClient = m_mapClients.find( pIncomingMsg->m_conn );
-			assert( itClient != m_mapClients.end() );
+    void PollIncomingMessages()
+    {
+        char temp[ 1024 ];
+        char tempToClient[ 1024 ];	
 
-			// '\0'-terminate it to make it easier to parse
-			std::string sCmd;
-			sCmd.assign( (const char *)pIncomingMsg->m_pData, pIncomingMsg->m_cbSize );
-			const char *cmd = sCmd.c_str();
+        while ( !g_bQuit )
+        {
+            ISteamNetworkingMessage *pIncomingMsg = nullptr;
+            int numMsgs = m_pInterface->ReceiveMessagesOnPollGroup( m_hPollGroup, &pIncomingMsg, 1 );
+            if ( numMsgs == 0 )
+                break;
+            if ( numMsgs < 0 )
+                FatalError( "Error checking for messages" );
+            assert( numMsgs == 1 && pIncomingMsg );
+            auto itClient = m_mapClients.find( pIncomingMsg->m_conn );
+            assert( itClient != m_mapClients.end() );
 
-			// We don't need this anymore.
-			pIncomingMsg->Release();
+            // '\0'-terminate it to make it easier to parse
+            std::string sCmd;
+#include <unistd.h>
+            sCmd.assign( (const char *)pIncomingMsg->m_pData, pIncomingMsg->m_cbSize );
+            const char *cmd = sCmd.c_str();
 
-			// Check for known commands.  None of this example code is secure or robust.
-			// Don't write a real server like this, please.
+            // We don't need this anymore.
+            pIncomingMsg->Release();
 
-			if ( strncmp( cmd, "/nick", 5 ) == 0 )
-			{
-				const char *nick = cmd+5;
-				while ( isspace(*nick) )
-					++nick;
-				
-				// Let everybody else know they changed their name
-				itClient->second.player.setName(nick);
-				sprintf( temp, "%s shall henceforth be known as %s", itClient->second.player.getName().c_str(), nick );
-				itClient->second.player.setName(nick);
-				SendStringToAllClients( temp, itClient->first );
-				
-				// Respond to client
-				sprintf( temp, "Ye shall henceforth be known as %s", nick );
-				SendStringToClient( itClient->first, temp );
+            // Check for known commands.  None of this example code is secure or robust.
+            // Don't write a real server like this, please.
 
-				// Actually change their name (We getting rid of this yes ?)
+            if ( strncmp( cmd, "/nick", 5 ) == 0 )
+            {
+                const char *nick = cmd+5;
+                while ( isspace(*nick) )
+                    ++nick;
+
+                // Let everybody else know they changed their name
+                itClient->second.player.setName(nick);
+                sprintf( temp, "%s shall henceforth be known as %s", itClient->second.player.getName().c_str(), nick );
+                itClient->second.player.setName(nick);
+                SendStringToAllClients( temp, itClient->first );
+
+                // Respond to client
+                sprintf( temp, "Ye shall henceforth be known as %s", nick );
+                SendStringToClient( itClient->first, temp );
+
+                // Actually change their name (We getting rid of this yes ?)
                 SetClientNick( itClient->first, nick );
                 continue;
             }
-			if ( (strcmp(cmd, "/ready" )) == 0  && !itClient->second.player.isReady() )
-			{
+            if ( (strcmp(cmd, "/ready" )) == 0  && !itClient->second.player.isReady() )
+            {
+                if( itClient->second.player.isReady() )
+                {
+                    SendStringToClient(itClient->first, "Already ready..");
+
+                }
+                else
+                {
 			    itClient->second.player.setReady(true);
 			    numReadied++;
-			    //(CHANGED) hard coded num of players for now
-			    SendStringToAllClients(
-				(itClient->second.player.getName() + "has readied up " + std::to_string(GetMaxPlayers() - numReadied) + " remain.").c_str() );
-			}
-			else 
-			{
-			    SendStringToClient(itClient->first, "Already ready..");
-			}
+                //(CHANGED) hard coded num of players for now
+                SendStringToAllClients(
+                        (itClient->second.player.getName() + "has readied up " + std::to_string(GetMaxPlayers() - numReadied) + " remain.").c_str() );
+                }
+                continue; // try suppress local echo :(
+            }
+
+#include <unistd.h>
 			// if no. of players == lobby players, start game..
 			if (numReadied == m_maxPlayers)
 			{
 			    SendStringToAllClients("All players ready! Starting game...");
+
 			}
 			
 			// Assume it's just a ordinary chat message, dispatch to everybody else
 			sprintf( temp, "%s: %s", itClient->second.m_sNick.c_str(), cmd );
-			SendStringToAllClients( temp, itClient->first );
+            sprintf(tempToClient, "(you) %s: %s", itClient->second.m_sNick.c_str(), cmd);
+            SendStringToAllClients( temp, itClient->first );
+            SendStringToClient( itClient->first, tempToClient ); 
 		}
 	}
 
@@ -425,6 +479,21 @@ private:
                 g_bQuit = true;
                 Printf( "Shutting down server" );
                 break;
+            }
+            
+            else if ( strncmp( cmd.c_str(), "/kick", 5 ) == 0 )
+            {
+                std::istringstream iss(cmd);
+                std::string command, target;
+                iss >> command >> target;
+
+               if ( target.empty() )
+               {
+                   Printf("Usage: /kick <name>");
+                   continue;
+               }
+               KickPlayerByName( target );
+
             }
 
 
@@ -492,6 +561,7 @@ private:
                                 pInfo->m_info.m_eEndReason,
                                 pInfo->m_info.m_szEndDebug
                               );
+#include <unistd.h>
 
                         m_mapClients.erase( itClient );
 
@@ -516,6 +586,7 @@ private:
             case k_ESteamNetworkingConnectionState_Connecting:
                 {
                     // This must be a new connection
+#include <unistd.h>
                     assert( m_mapClients.find( pInfo->m_hConn ) == m_mapClients.end() );
 
                     Printf( "Connection request from %s", pInfo->m_info.m_szConnectionDescription );
@@ -583,6 +654,7 @@ private:
             default:
                 // Silences -Wswitch
                 break;
+#include <unistd.h>
         }
     }
 
@@ -653,6 +725,7 @@ class ChatClient
                 fwrite( pIncomingMsg->m_pData, 1, pIncomingMsg->m_cbSize, stdout );
                 fputc( '\n', stdout );
 
+#include <unistd.h>
                 // We don't need this anymore.
                 pIncomingMsg->Release();
             }
@@ -776,6 +849,26 @@ void PrintUsageAndExit( int rc = 1 )
 
 int main( int argc, const char *argv[] )
 {
+    /* comment these 2 down.
+     Issue:
+        Basically when a player types something and presses enter it will show what they typed then what they received from the server (SendStringToClient() ).
+        This is to make it the chat uniform. 
+        The former is ofc just echo terminal behaviour. 
+        3 Options:
+            1. No need to have the player get sent what they type (aka a players chat will look like so: 
+                Labubu1: Hey hey hey!
+                i am typing guys
+                Labubu2: Yeah we see you typing
+            2. Suppress echo but then that means the player cannot see character by character what they are typing only after they press enter they can see.
+            3. Dont suppress echo and still SendStringToClient() so it will be: 
+                Labubu1: Erm hello?
+                i am typing guys
+                (you) Labubu2: i am typing guys
+                Labubu3: okay!
+    ALLL THIS IS IRRELVANT AND GETS FIXED WHEN/IF WE MOVE TO NCURSES!!!!!!!!!!!!!!!!!!
+    */
+    DisableEcho();
+    LocalUserInput_Init();
     bool bServer = false;
     bool bClient = false;
     int nPort = DEFAULT_SERVER_PORT;
@@ -863,5 +956,6 @@ int main( int argc, const char *argv[] )
     // Ug, why is there no simple solution for portable, non-blocking console user input?
     // Just nuke the process
     //LocalUserInput_Kill();
+    RestoreEcho();
     NukeProcess(0);
 }
