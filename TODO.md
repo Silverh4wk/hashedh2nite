@@ -9,3 +9,4 @@
 # Chat 
 
 [ ] Compile and run valve's example file
+[ ] /list command for player list
