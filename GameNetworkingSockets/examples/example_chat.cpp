@@ -17,9 +17,9 @@
 #include <map>
 #include <cctype>
 #include <sstream>
-
-#include <steam/steamnetworkingsockets.h>
-#include <steam/isteamnetworkingutils.h>
+#include <fstream>
+#include "../include/steam/steamnetworkingsockets.h"
+#include "../include/steam/isteamnetworkingutils.h"
 #ifndef STEAMNETWORKINGSOCKETS_OPENSOURCE
 #include <steam/steam_api.h>
 #endif
@@ -155,6 +155,34 @@ static void ShutdownSteamDatagramConnectionSockets()
 	#endif
 }
 
+static void  initWordsList(std::string file_name) {
+
+    std::fstream myfile(file_name.c_str());
+
+   if (myfile.is_open())
+   {
+      std::string line;
+      std::vector<std::string> v;
+
+      while (std::getline(myfile, line))
+      {
+         v.push_back(line);
+      }
+
+      myfile.close();
+
+      Printf( "TOTAL: %d \n" ,v.size());
+
+      for (size_t index { }; index < v.size(); index++)
+      {
+	  //Printf( "Line # %zu -   %s << \n",(index+1) ,v[index]) ;
+      }
+   }
+   else
+   {
+       Printf("Unable to open file\n");
+   }
+}
 
 
 /////////////////////////////////////////////////////////////////////////////
@@ -869,7 +897,7 @@ int main( int argc, const char *argv[] )
     */
     DisableEcho();
     LocalUserInput_Init();
-    bool bServer = false;
+    bool bServer = false; 
     bool bClient = false;
     int nPort = DEFAULT_SERVER_PORT;
     SteamNetworkingIPAddr addrServer; addrServer.Clear();
