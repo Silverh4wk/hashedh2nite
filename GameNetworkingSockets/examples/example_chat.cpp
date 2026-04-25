@@ -2,6 +2,9 @@
 //
 // Example client/server chat application using SteamNetworkingSockets
 
+#include <cstdlib>
+#include <ctime>
+#include <cmath>
 #include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
@@ -36,7 +39,7 @@
 // Common stuff
 //
 /////////////////////////////////////////////////////////////////////////////
-
+static size_t n_players;
 
 // check comment in main function
 // https://stackoverflow.com/questions/59922972/how-to-stop-echo-in-terminal-using-c
@@ -155,7 +158,7 @@ static void ShutdownSteamDatagramConnectionSockets()
 	#endif
 }
 
-static void  initWordsList(std::string file_name) {
+std::vector<std::string> initWordsList(std::string file_name = "wordlist.txt") {
 
     std::fstream myfile(file_name.c_str());
 
@@ -177,6 +180,7 @@ static void  initWordsList(std::string file_name) {
       {
 	  //Printf( "Line # %zu -   %s << \n",(index+1) ,v[index]) ;
       }
+      return v;
    }
    else
    {
@@ -199,12 +203,13 @@ public:
     void setName( std::string name) { m_name = name; }
     void setReady( bool ready ) { m_ready = ready; }
     bool isReady() const { return m_ready; }
-
+    bool isSpy;
     const std::string& getName() const { return m_name; }
-
+    
 private:
     std::string m_name;
     bool m_ready = false;
+    
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -305,6 +310,14 @@ class ChatServer
 {
 public:
     int numReadied = 0; // u can move it to private it if u want idc much
+    struct Client_t
+    {
+        std::string m_sNick;
+        Player player;
+    };
+
+    std::map< HSteamNetConnection, Client_t > m_mapClients;
+    
 
     void Run( uint16 nPort, size_t mxplayers )
 	{
@@ -392,13 +405,7 @@ private:
     HSteamNetPollGroup m_hPollGroup;
     ISteamNetworkingSockets *m_pInterface;
     size_t m_maxPlayers;
-    struct Client_t
-    {
-        std::string m_sNick;
-        Player player;
-    };
 
-    std::map< HSteamNetConnection, Client_t > m_mapClients;
 
     void SendStringToClient( HSteamNetConnection conn, const char *str )
     {
@@ -486,7 +493,7 @@ private:
 			if (numReadied == m_maxPlayers)
 			{
 			    SendStringToAllClients("All players ready! Starting game...");
-
+                startGame();
 			}
 			
 			// Assume it's just a ordinary chat message, dispatch to everybody else
@@ -496,6 +503,110 @@ private:
             SendStringToClient( itClient->first, tempToClient ); 
 		}
 	}
+
+    std::string genWord(){
+        std::string word;
+        std::vector<std::string> wordList;
+        srand(time(0));
+
+        // open file
+        // generate word
+        // wow
+        
+        wordList = initWordsList();
+
+        size_t numOfWords = wordList.size();
+        int indexOfRandom = rand() % numOfWords + 1;            
+        return wordList.at(indexOfRandom); 
+    }
+
+    std::vector<std::string> generatePlayerNames(std::string word){
+       // grab all names with each letters
+        std::vector<std::string> playerNames;
+        int howManyNamesWeGot = 0, randomNum, currNameIndex = 0;
+        std::vector<char> vec(word.begin(), word.end());
+
+        std::string playerName;
+        std::vector<std::string> allNames = initWordsList("player_list.txt");
+
+        while(true){
+            if(howManyNamesWeGot == n_players){
+                return playerNames;
+            }
+            playerName = allNames.at(currNameIndex);
+            int randomNum = rand() % n_players + 1;
+
+            // find a letter if it's there delete it !! (this is extremely dumb shoutout hazim
+            for(int x = 0; x < vec.size(); x++){
+                if(playerName.find(vec[x])){
+                    playerNames.push_back(playerName);
+                    howManyNamesWeGot++;
+                    vec.erase(vec.begin()+x);
+                }
+                currNameIndex++;
+            }
+        }
+    }
+    
+    void setEveryoneNick(std::vector<std::string> &players){
+        
+        for(int x = 0; x < n_players; x++){
+            auto it = m_mapClients.begin();
+            it->second.player.setName(players[x]);
+            it++; 
+        }
+    }
+
+
+    void generateRoles(){
+        int numOfSpy;
+        int randomNum;
+
+        int currSpies = 0;
+        
+        numOfSpy = floor(n_players-1/2);
+
+        for(int x = 0; x<n_players;x++){
+            auto it = m_mapClients.begin();
+            randomNum = std::rand() % 2; 
+            
+            if(randomNum == 1 && (currSpies < numOfSpy)){
+                it->second.player.isSpy = 1; 
+                currSpies++;
+            }
+            else{
+                it->second.player.isSpy = 0;
+            }
+
+
+
+            it++; 
+
+        }
+
+    }
+
+    void startGame(){
+        int node = 0;
+        std::vector<std::string> playerNames;
+        std::string word = genWord();
+
+        playerNames = generatePlayerNames(word);
+
+        setEveryoneNick(playerNames);
+
+        // get the roles
+        generateRoles();
+
+            // tell the roles their role
+            //SendString
+            SendStringToAllClients("Node: 1");
+
+
+
+    }
+
+
 
     void PollLocalUserInput()
     {
@@ -508,7 +619,7 @@ private:
                 Printf( "Shutting down server" );
                 break;
             }
-            
+
             else if ( strncmp( cmd.c_str(), "/kick", 5 ) == 0 )
             {
                 std::istringstream iss(cmd);
@@ -955,7 +1066,7 @@ int main( int argc, const char *argv[] )
     }
     else
     {
-	size_t n_players = 0;
+	 n_players = 0;
 	// Lobby Setup
 	Printf("Set the number of players for this session:\n");
 	std::string cmd;
