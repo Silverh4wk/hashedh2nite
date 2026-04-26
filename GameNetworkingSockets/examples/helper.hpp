@@ -111,6 +111,7 @@
        Printf("Unable to open file\n");
    }
    
+   exit(0);
 }
 
 

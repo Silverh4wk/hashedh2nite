@@ -1,13 +1,48 @@
 #include "servers.hpp"
 #include "helper.hpp"
 #include <assert.h>
+#define AGENT_WIN 1
+#define SPY_WIN 0
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // ChatServer
 //
 /////////////////////////////////////////////////////////////////////////////
+void ChatServer::win(int whoWon){
+        if(whoWon){
+            // agent won!!! 
+        }
+        else{
+            // spy won!!1
+        }   
 
+}
+void ChatServer::playerPropose(std::string playerName) {
+    char temp[1024];
+    int howManyInNode = 2;
+
+    if (node > 2) {
+        howManyInNode = 3;
+    }
+
+    // Iterate and check, if player then send message...
+    std::string strTemp = std::string("%d", howManyInNode);
+    sprintf(temp, "Propose %s players", strTemp.c_str());
+    auto it = m_mapClients.begin();
+    if (it != m_mapClients.end())
+        for (auto &c : m_mapClients) {
+            if (c.second.player.getName() == playerName ) {
+                SendStringToClient(c.first, temp);
+                for (int x = 0; x<howManyInNode; x++){
+                    sprintf(temp, "Enter the index of player %d", x);
+                    SendStringToClient(c.first, temp);
+
+                }
+
+            }
+        }
+}
 void ChatServer::Run( uint16 nPort, size_t mxplayers )
 {
     // Select instance to use.  For now we'll always use the default.
@@ -22,33 +57,60 @@ void ChatServer::Run( uint16 nPort, size_t mxplayers )
     opt.SetPtr( k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, (void*)SteamNetConnectionStatusChangedCallback);
     m_hListenSock = m_pInterface->CreateListenSocketIP( serverLocalAddr, 1, &opt );
     if ( m_hListenSock == k_HSteamListenSocket_Invalid )
-	FatalError( "Failed to listen on port %d", nPort );
+        FatalError( "Failed to listen on port %d", nPort );
     m_hPollGroup = m_pInterface->CreatePollGroup();
     if ( m_hPollGroup == k_HSteamNetPollGroup_Invalid )
-	FatalError( "Failed to listen on port %d", nPort );
+        FatalError( "Failed to listen on port %d", nPort );
     Printf( "Server listening on port %d\n", nPort );
 
     while ( !g_bQuit )
-    {
-	PollIncomingMessages();
-	PollConnectionStateChanges();
-	PollLocalUserInput();
-	std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
-    }
+
+        while ( !g_bQuit )
+        {
+            char temp[1024];
+
+            std::string currentProposalName;
+            PollIncomingMessages();
+            PollConnectionStateChanges();
+            PollLocalUserInput();
+            std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
+            // Game loop
+
+            // Agent wins
+            if(CURRENT_STATE == STATE_AGENT_WIN){
+                win(AGENT_WIN);
+            }
+            // Spy wins
+            if(CURRENT_STATE == STATE_SPY_WIN){
+                win(SPY_WIN);
+            }
+
+            if(CURRENT_STATE == STATE_START){
+                // get the first playe's position 
+                // modolu of m_players - 1 
+                currentProposalName = this->m_mapClients.at(player_currently_proposing).player.getName().c_str();
+                sprintf(temp, "The player currently proposing is %s", currentProposalName.c_str()); 
+                SendStringToAllClients(temp);
+                CURRENT_STATE = STATE_PROPOSE;
+                playerPropose(currentProposalName);
+            }
+
+
+        }
 
     // Close all the connections
     Printf( "Closing connections...\n" );
     for ( auto it: m_mapClients )
     {
-	// Send them one more goodbye message.  Note that we also have the
-	// connection close reason as a place to send final data.  However,
-	// that's usually best left for more diagnostic/debug text not actual
-	// protocol strings.
-	SendStringToClient( it.first, "Server is shutting down.  Goodbye." );
+        // Send them one more goodbye message.  Note that we also have the
+        // connection close reason as a place to send final data.  However,
+        // that's usually best left for more diagnostic/debug text not actual
+        // protocol strings.
+        SendStringToClient( it.first, "Server is shutting down.  Goodbye." );
 
-	// Close the connection.  We use "linger mode" to ask SteamNetworkingSockets
-	// to flush this out and close gracefully.
-	m_pInterface->CloseConnection( it.first, 0, "Server Shutdown", true );
+        // Close the connection.  We use "linger mode" to ask SteamNetworkingSockets
+        // to flush this out and close gracefully.
+        m_pInterface->CloseConnection( it.first, 0, "Server Shutdown", true );
     }
     m_mapClients.clear();
 
@@ -241,27 +303,34 @@ void ChatServer::setEveryoneNick(std::vector<std::string> &players){
 
 void ChatServer:: generateRoles(){
     int numOfSpy;
-    int randomNum;
+        int randomNum;
+        std::string nodeLose; 
+        char temp[1024];
+        int currSpies = 0;
+       
+        // bomboclat
+        numOfSpy = (n_players-1)/2;
+        nodesAgentsCanLose = numOfSpy+1;
 
-    int currSpies = 0;
-        
-    numOfSpy = (n_players-1)/2;
-
-    for(int x = 0; x<n_players;x++){
-	auto it = m_mapClients.begin();
-	randomNum = std::rand() % 2; 
+        for(int x = 0; x<n_players;x++){
+            auto it = m_mapClients.begin();
+            randomNum = std::rand() % 2; 
             
-	if(randomNum == 1 && (currSpies < numOfSpy)){
-	    it->second.player.isSpy = 1; 
-	    currSpies++;
-	}
-	else{
-	    it->second.player.isSpy = 0;
-	}
+            if(randomNum == 1 && (currSpies < numOfSpy)){
+                it->second.player.isSpy = 1; 
+                currSpies++;
+                sprintf(temp, "Your role is Spy!! You win if the agents cant find you in %s nodes", nodeLose.c_str());
+                SendStringToClient(it->first, temp);
 
-	it++; 
-	
-    }
+            }
+            else{
+                sprintf(temp, "Your role is Agent!! You win if you figure out the word in less than %s nodes", nodeLose.c_str());
+                SendStringToClient(it->first, temp);
+                it->second.player.isSpy = 0;
+            }
+            it++; 
+
+        }
 
 }
 
@@ -292,17 +361,17 @@ void ChatServer::PollLocalUserInput()
     std::string cmd;
     while ( !g_bQuit && LocalUserInput_GetNext( cmd ))
     {
-	if ( strcmp( cmd.c_str(), "/quit" ) == 0 )
-	{
-	    g_bQuit = true;
-	    Printf( "Shutting down server" );
-	    break;
-	}
+        if ( strcmp( cmd.c_str(), "/quit" ) == 0 )
+        {
+            g_bQuit = true;
+            Printf( "Shutting down server" );
+            break;
+        }
 
-	else if ( strncmp( cmd.c_str(), "/kick", 5 ) == 0 )
-	{
-	    std::istringstream iss(cmd);
-	    std::string command, target;
+        else if ( strncmp( cmd.c_str(), "/kick", 5 ) == 0 )
+        {
+            std::istringstream iss(cmd);
+            std::string command, target;
 	    iss >> command >> target;
 
 	    if ( target.empty() )

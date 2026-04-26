@@ -108,6 +108,8 @@ public:
 	}
     
     std::map< HSteamNetConnection, Client_t > m_mapClients;
+    void playerPropose(std::string playerName);
+    void win(int whoWon);
 
     void Run( uint16 nPort, size_t mxplayers );
     
@@ -119,6 +121,8 @@ public:
 
     void SendStringToAllClients( const char *str, HSteamNetConnection except = k_HSteamNetConnection_Invalid );
     
+
+
     void PollIncomingMessages();
      
     std::vector<std::string> generatePlayerNames(std::string word);
