@@ -262,31 +262,34 @@ std::string ChatServer::genWord()
     int indexOfRandom = rand() % numOfWords + 1;            
     return wordList.at(indexOfRandom); 
 }
-
 std::vector<std::string> ChatServer::generatePlayerNames(std::string word){
-    // grab all names with each letters
+
+// grab all names with each letters
     std::vector<std::string> playerNames;
-    int howManyNamesWeGot = 0, randomNum, currNameIndex = 0;
+    int randomNum, currNameIndex = 0;
     std::vector<char> vec(word.begin(), word.end());
 
     std::string playerName;
     std::vector<std::string> allNames = initWordsList("player_list.txt");
 
     while(true){
-	if(howManyNamesWeGot == n_players){
+	
+	if(currNameIndex++ == n_players){
 	    return playerNames;
 	}
-	playerName = allNames.at(currNameIndex);
-	int randomNum = rand() % n_players + 1;
+
+	
+	int randomNum = rand() % allNames.size() + 1;
+	playerName = allNames.at(randomNum);
 
 	// find a letter if it's there delete it !! (this is extremely dumb shoutout hazim
 	for(int x = 0; x < vec.size(); x++){
 	    if(playerName.find(vec[x])){
 		playerNames.push_back(playerName);
-		howManyNamesWeGot++;
+		currNameIndex++;
 		vec.erase(vec.begin()+x);
 	    }
-	    currNameIndex++;
+	    
 	}
     }
 }
@@ -505,7 +508,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	// but not logged on) until them.  I'm trying to keep this example
 	// code really simple.
 	char nick[ 64 ];
-	sprintf( nick, "BraveWarrior%d", 10000 + ( rand() % 100000 ) );
+	sprintf( nick, "Player%luu", 0 + ( rand() % n_players +1 ) );
 
 	// Send them a welcome message
 	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 
