@@ -95,6 +95,23 @@ if (WIN32)
 		endif()
 	endif()
 endif()
+if(BUILD_EXAMPLES)
+    find_package(Curses REQUIRED)
+    if(NOT TARGET Curses::Curses)
+        add_library(Curses::Curses INTERFACE IMPORTED)
+        set_target_properties(Curses::Curses PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${CURSES_INCLUDE_DIRS}"
+            INTERFACE_LINK_LIBRARIES    "${CURSES_LIBRARIES}"
+        )
+    endif()
+endif()
+
+find_package(CursesForm)
+if(CURSES_FORM_FOUND)
+    set(CURSES_FORM_LIBRARIES Curses::Form)
+else()
+    set(CURSES_FORM_LIBRARIES form)
+endif()
 
 if (USE_CRYPTO STREQUAL "OpenSSL")
 	# Match the OpenSSL runtime to our setting.

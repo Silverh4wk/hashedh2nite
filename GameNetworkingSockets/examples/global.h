@@ -10,10 +10,13 @@
 
 
 //externs
+extern const uint16 DEFAULT_SERVER_PORT;
 extern SteamNetworkingMicroseconds g_logTimeZero; //define this lates
 extern size_t n_players;
 extern struct termios orig_termios;
 extern bool g_bQuit;
+extern bool g_bSuppressPrintf;
+
 /////////////////////////////////////////////////////////////////////////////
 //
 // Non-blocking console user input.  Sort of.

@@ -156,6 +156,14 @@ class ChatClient
     public:
     HSteamNetConnection m_hConnection;
     ISteamNetworkingSockets *m_pInterface;
+
+    // for functions that ncurses file rely on
+    std::queue<std::string> m_incomingMessages;
+    std::queue<std::string> m_outgoingMessages;
+
+    std::mutex m_outgoingMutex;
+    std::mutex m_incomingMutex;
+    
     static void SteamNetConnectionStatusChangedCallback( SteamNetConnectionStatusChangedCallback_t *pInfo )
 	{
 	    s_pCallbackInstance->OnSteamNetConnectionStatusChanged( pInfo );
@@ -167,5 +175,13 @@ class ChatClient
     void PollLocalUserInput();
     void OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChangedCallback_t *pInfo );
     void PollConnectionStateChanges();
+
+    // functions for ncurses file
+    void pushIncomingMessage(const std::string& msg);
+    bool popIncomingMessage(std::string& outMsg);
+    void pushOutgoingMessage(const std::string& msg);
+    bool popOutgoingMessage(std::string& outMsg);
+    
+    void sendUserMessage(const std::string& msg);
 };
 

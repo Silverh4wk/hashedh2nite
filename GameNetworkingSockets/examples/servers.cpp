@@ -525,8 +525,11 @@ void ChatClient:: PollIncomingMessages()
 	    FatalError( "Error checking for messages" );
 		
 	// Just echo anything we get from the server
-	fwrite( pIncomingMsg->m_pData, 1, pIncomingMsg->m_cbSize, stdout );
+	//fwrite( pIncomingMsg->m_pData, 1, pIncomingMsg->m_cbSize, stdout );
 	fputc( '\n', stdout );
+
+	std::string msg((const char*)pIncomingMsg->m_pData, pIncomingMsg->m_cbSize);
+        pushIncomingMessage(msg);   
 	// We don't need this anymore.
 	pIncomingMsg->Release();
     }
@@ -536,7 +539,7 @@ void ChatClient:: PollIncomingMessages()
 void ChatClient::PollLocalUserInput()
 {
     std::string cmd;
-    while ( !g_bQuit && LocalUserInput_GetNext( cmd ))
+    while ( popOutgoingMessage(cmd))
     {
 
 	// Check for known commands
@@ -557,6 +560,57 @@ void ChatClient::PollLocalUserInput()
 	m_pInterface->SendMessageToConnection( m_hConnection, cmd.c_str(), (uint32)cmd.length(), k_nSteamNetworkingSend_Reliable, nullptr );
     }
 }
+
+
+void ChatClient::pushIncomingMessage(const std::string& msg)
+{
+    std::lock_guard<std::mutex> lock(m_incomingMutex);
+    m_incomingMessages.push(msg);
+}
+
+bool ChatClient::popIncomingMessage(std::string& outMsg)
+{
+    std::lock_guard<std::mutex> lock(m_incomingMutex);
+    if (m_incomingMessages.empty()) return false;
+    outMsg = m_incomingMessages.front();
+    m_incomingMessages.pop();
+    return true;
+}
+
+void ChatClient::pushOutgoingMessage(const std::string& msg)
+{
+    std::lock_guard<std::mutex> lock(m_outgoingMutex);
+    m_outgoingMessages.push(msg);
+}
+
+bool ChatClient::popOutgoingMessage(std::string& outMsg)
+{
+    std::lock_guard<std::mutex> lock(m_outgoingMutex);
+    if (m_outgoingMessages.empty()) return false;
+    outMsg = m_outgoingMessages.front();
+    m_outgoingMessages.pop();
+    return true;
+}
+
+// void ChatClient::sendUserMessage(const std::string& msg)
+// {
+//     if (m_hConnection != k_HSteamNetConnection_Invalid)
+//     {
+//         m_pInterface->SendMessageToConnection(m_hConnection, msg.c_str(),
+//         (uint32)msg.size(),
+//                                               k_nSteamNetworkingSend_Reliable,
+//                                               nullptr);
+//     }
+// }
+void ChatClient::sendUserMessage(const std::string& msg)
+{
+    if (m_hConnection != k_HSteamNetConnection_Invalid)
+    {
+        m_pInterface->SendMessageToConnection(m_hConnection, msg.c_str(), (uint32)msg.size(),
+                                              k_nSteamNetworkingSend_Reliable, nullptr);
+    }
+}
+
 
 void ChatClient::PollConnectionStateChanges()
 {
