@@ -100,6 +100,11 @@ public:
     {
         std::string m_sNick;
         Player player;
+        // 2 -> hasnt voted yet
+        // 0 -> voted no
+        // 1 -> voted yes
+        int voteState = 2;
+
     };
 
     static void SteamNetConnectionStatusChangedCallback( SteamNetConnectionStatusChangedCallback_t *pInfo )

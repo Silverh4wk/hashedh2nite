@@ -43,7 +43,7 @@ void RunNcursesFormClient(const char* serverAddrStr)
     cbreak();
     noecho();
     keypad(stdscr, TRUE);
-    curs_set(1);
+    curs_set(0);
 
     int maxy, maxx;
     getmaxyx(stdscr, maxy, maxx);

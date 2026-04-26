@@ -1,7 +1,9 @@
 #include "servers.hpp"
 #include "helper.hpp"
 #include <assert.h>
+#include <iostream>
 #define AGENT_WIN 1
+
 #define SPY_WIN 0
 
 /////////////////////////////////////////////////////////////////////////////
@@ -26,8 +28,9 @@ void ChatServer::playerPropose(std::string playerName) {
         howManyInNode = 3;
     }
 
+    int x = 0;
     // Iterate and check, if player then send message...
-    std::string strTemp = std::string("%d", howManyInNode);
+    std::string strTemp = std::to_string(howManyInNode);
     sprintf(temp, "Propose %s players", strTemp.c_str());
     auto it = m_mapClients.begin();
     if (it != m_mapClients.end())
@@ -37,6 +40,18 @@ void ChatServer::playerPropose(std::string playerName) {
                 for (int x = 0; x<howManyInNode; x++){
                     sprintf(temp, "Enter the index of player %d", x);
                     SendStringToClient(c.first, temp);
+                    // output all the players
+                    SendStringToClient(c.first, "Here is the list of players and their indexes");
+
+                    auto names = m_mapClients.begin();
+                    for (auto &d : m_mapClients) {
+                        sprintf(temp, "%d %s", x, d.second.player.getName().c_str());
+                        x++;
+                        SendStringToClient(c.first, temp);
+                        names++;
+                    }
+
+
 
                 }
 
@@ -45,6 +60,7 @@ void ChatServer::playerPropose(std::string playerName) {
 }
 void ChatServer::Run( uint16 nPort, size_t mxplayers )
 {
+
     // Select instance to use.  For now we'll always use the default.
     // But we could use SteamGameServerNetworkingSockets() on Steam.
     m_pInterface = SteamNetworkingSockets();
@@ -85,14 +101,27 @@ void ChatServer::Run( uint16 nPort, size_t mxplayers )
                 win(SPY_WIN);
             }
 
-            if(CURRENT_STATE == STATE_START){
+            if(CURRENT_STATE == STATE_PROPOSE){
                 // get the first playe's position 
                 // modolu of m_players - 1 
-                currentProposalName = this->m_mapClients.at(player_currently_proposing).player.getName().c_str();
+                auto it = m_mapClients.begin();
+                std::advance(it, player_currently_proposing);
+
+                if (it != m_mapClients.end()) {
+                    currentProposalName = it->second.player.getName();
+                }
                 sprintf(temp, "The player currently proposing is %s", currentProposalName.c_str()); 
                 SendStringToAllClients(temp);
-                CURRENT_STATE = STATE_PROPOSE;
                 playerPropose(currentProposalName);
+                CURRENT_STATE = STATE_PROPOSE_WAIT;
+
+            }
+
+            if(CURRENT_STATE == STATE_PROPOSAL_VOTING){
+                sprintf(temp, "The node to be voted on has %s and %s", firstGuy, secondGuy); 
+                SendStringToAllClients(temp);
+                CURRENT_STATE = STATE_PROPOSAL_VOTING_WAIT;
+            
             }
 
 
@@ -131,12 +160,12 @@ void ChatServer:: KickPlayerByName(const std::string& name)
     // loop through clients and check their nick
     for ( auto it = m_mapClients.begin(); it != m_mapClients.end(); it++ )
     {
-	if ( it->second.m_sNick == name )
-	{
-	    SendStringToClient(it->first, "You have been kicked. Goodbye Creature.");
-	    // At some point probably use an exit code from here: https://partner.steamgames.com/doc/api/steamnetworkingtypes#ESteamNetConnectionEnd
-	    // Unsure of the usage of the 4th argument (bEnableLinger)
-	    m_pInterface->CloseConnection(it->first, 0, "Kicked", true);
+        if ( it->second.m_sNick == name )
+        {
+            SendStringToClient(it->first, "You have been kicked. Goodbye Creature.");
+            // At some point probably use an exit code from here: https://partner.steamgames.com/doc/api/steamnetworkingtypes#ESteamNetConnectionEnd
+            // Unsure of the usage of the 4th argument (bEnableLinger)
+            m_pInterface->CloseConnection(it->first, 0, "Kicked", true);
 
 
 	    SendStringToAllClients((name + " was kicked.").c_str());
@@ -167,6 +196,8 @@ void ChatServer::SendStringToAllClients( const char *str, HSteamNetConnection ex
 
 void ChatServer::PollIncomingMessages()
 {
+    static int tallyVoteState = 0;
+    static int voteCount = 0;
     char temp[ 1024 ];
     char tempToClient[ 1024 ];	
 
@@ -189,9 +220,74 @@ void ChatServer::PollIncomingMessages()
 
 	// We don't need this anymore.
 	pIncomingMsg->Release();
+    int playerChoice;
+    if(CURRENT_STATE == STATE_PROPOSAL_VOTING_WAIT){
+        
+        sprintf(temp, "%d",std::stoi(strdup(cmd))); 
+        Printf(temp);
 
-	// Check for known commands.  None of this example code is secure or robust.
-	// Don't write a real server like this, please.
+       if(itClient->second.voteState == 2){
+           Printf("%d",std::stoi(strdup(cmd)) );
+           playerChoice = std::stoi(strdup(cmd)); 
+
+           if(playerChoice == 1){
+                tallyVoteState++;
+                voteCount++;
+           }
+           else if(playerChoice == 0){
+                tallyVoteState--;
+                voteCount++;
+
+           }
+           if(voteCount == n_players){
+                CURRENT_STATE = STATE_PROPOSAL_VOTE_RESOLVE; 
+           }
+           sprintf(temp, "%s voted %d. Currently the tally is %d", itClient->second.player.getName().c_str(), playerChoice, tallyVoteState );
+
+           SendStringToAllClients(temp);
+
+
+           playerChoice = -1;
+
+           // has eveyrone voted yet:
+
+       }
+
+
+
+    }
+
+
+
+
+    if (CURRENT_STATE == STATE_PROPOSE_WAIT){
+
+        auto it = m_mapClients.begin();
+
+
+        std::advance(it, player_currently_proposing);
+
+
+        // if server yet to receive first guy proposed then put the input in the firstGuy
+        // else put in secondGuy
+        // THIS IS SOOOOOOOOOOOOOOOOOOOOOO BADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD
+        if(it->first == itClient->first){
+            if (firstGuy == nullptr) { 
+                firstGuy = strdup(cmd); 
+                SendStringToClient(it->first, "YOU HAVE CHOSEN");
+            }
+            else{
+                secondGuy = strdup(cmd); 
+                SendStringToClient(it->first, "YOU HAVE CHOSEN second :/");
+                CURRENT_STATE = STATE_PROPOSAL_VOTING;
+
+            }
+
+        }
+
+    }
+        // Check for known commands.  None of this example code is secure or robust.
+        // Don't write a real server like this, please.
 
 	if ( strncmp( cmd, "/nick", 5 ) == 0 )
 	{
@@ -213,7 +309,7 @@ void ChatServer::PollIncomingMessages()
 	    SetClientNick( itClient->first, nick );
 	    continue;
 	}
-	if ( (strcmp(cmd, "/ready" )) == 0  && !itClient->second.player.isReady() )
+	if ( (strcmp(cmd, "/r" )) == 0  && !itClient->second.player.isReady() )
 	{
 	    if( itClient->second.player.isReady() )
 	    {
@@ -232,15 +328,15 @@ void ChatServer::PollIncomingMessages()
 	}
 
 	// if no. of players == lobby players, start game..
-	if (numReadied == m_maxPlayers)
+    if (numReadied == m_maxPlayers && CURRENT_STATE == STATE_GAMEINIT)
 	{
 	    SendStringToAllClients("All players ready! Starting game...");
 	    startGame();
 	}
 			
 	// Assume it's just a ordinary chat message, dispatch to everybody else
-	sprintf( temp, "%s: %s", itClient->second.m_sNick.c_str(), cmd );
-	sprintf(tempToClient, "(you) %s: %s", itClient->second.m_sNick.c_str(), cmd);
+	sprintf( temp, "%s: %s", itClient->second.player.getName().c_str(), cmd );
+	sprintf(tempToClient, "(you) %s: %s", itClient->second.player.getName().c_str(), cmd);
 	SendStringToAllClients( temp, itClient->first );
 	SendStringToClient( itClient->first, tempToClient ); 
     }
@@ -260,45 +356,28 @@ std::string ChatServer::genWord()
     
     size_t numOfWords = wordList.size();
     int indexOfRandom = rand() % numOfWords + 1;            
+
+    SendStringToAllClients(wordList.at(indexOfRandom).c_str());
     return wordList.at(indexOfRandom); 
 }
 std::vector<std::string> ChatServer::generatePlayerNames(std::string word){
-
-// grab all names with each letters
-    std::vector<std::string> playerNames;
-    int randomNum, currNameIndex = 0;
-    std::vector<char> vec(word.begin(), word.end());
-
-    std::string playerName;
     std::vector<std::string> allNames = initWordsList("player_list.txt");
+    std::vector<std::string> playerNames;
 
-    while(true){
-	
-	if(currNameIndex++ == n_players){
-	    return playerNames;
-	}
+    std::random_shuffle(allNames.begin(), allNames.end());
 
-	
-	int randomNum = rand() % allNames.size() + 1;
-	playerName = allNames.at(randomNum);
-
-	// find a letter if it's there delete it !! (this is extremely dumb shoutout hazim
-	for(int x = 0; x < vec.size(); x++){
-	    if(playerName.find(vec[x])){
-		playerNames.push_back(playerName);
-		currNameIndex++;
-		vec.erase(vec.begin()+x);
-	    }
-	    
-	}
+    for (int i = 0; i < n_players && i < allNames.size(); i++) {
+        playerNames.push_back(allNames[i]);
     }
-}
 
+    return playerNames;
+}
 void ChatServer::setEveryoneNick(std::vector<std::string> &players){
-    
+    auto it = m_mapClients.begin();
+
     for(int x = 0; x < n_players; x++){
-	auto it = m_mapClients.begin();
 	it->second.player.setName(players[x]);
+    SendStringToClient(it->first, "your name changed lol");
 	it++; 
     }
 }
@@ -314,9 +393,9 @@ void ChatServer:: generateRoles(){
         // bomboclat
         numOfSpy = (n_players-1)/2;
         nodesAgentsCanLose = numOfSpy+1;
+        auto it = m_mapClients.begin();
 
         for(int x = 0; x<n_players;x++){
-            auto it = m_mapClients.begin();
             randomNum = std::rand() % 2; 
             
             if(randomNum == 1 && (currSpies < numOfSpy)){
@@ -347,13 +426,14 @@ void ChatServer::startGame(){
     setEveryoneNick(playerNames);
 
     // get the roles
-    generateRoles();
+    //generateRoles();
 
     // tell the roles their role
     //SendString
-    SendStringToAllClients("Node: 1");
+    //SendStringToAllClients("Node: 1");
 
 
+    CURRENT_STATE = STATE_PROPOSE;
 
 }
 
@@ -397,6 +477,8 @@ void ChatServer::SetClientNick( HSteamNetConnection hConn, const char *nick )
 
     // Remember their nick
     m_mapClients[hConn].m_sNick = nick;
+    m_mapClients[hConn].player.setName(nick);
+
     
     // Set the connection name, too, which is useful for debugging
     m_pInterface->SetConnectionName( hConn, nick );
@@ -508,7 +590,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	// but not logged on) until them.  I'm trying to keep this example
 	// code really simple.
 	char nick[ 64 ];
-	sprintf( nick, "Player%luu", 0 + ( rand() % n_players +1 ) );
+	sprintf( nick, "Player%lu", 0 + ( rand() % n_players +1 ) );
 
 	// Send them a welcome message
 	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 

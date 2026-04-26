@@ -22,8 +22,10 @@ SteamNetworkingMicroseconds g_logTimeZero;
 bool g_bSuppressPrintf = false;
 int nodesAgentsCanLose = 0; 
 int player_currently_proposing = 0;
-GAME_STATES CURRENT_STATE;
+GAME_STATES CURRENT_STATE = STATE_GAMEINIT;
 int node = 0;
+const char* firstGuy;
+const char* secondGuy;
 
 void PrintUsageAndExit( int rc = 1 )
 {
