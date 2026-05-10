@@ -3,6 +3,7 @@
 #include <thread>
 #include <mutex>
 #include <queue>
+#include "hashed2nite.h"
 
 #include "../include/steam/steamnetworkingsockets.h"
 #include "../include/steam/isteamnetworkingutils.h"
@@ -10,22 +11,6 @@
 #ifndef STEAMNETWORKINGSOCKETS_OPENSOURCE
 #include <steam/steam_api.h>
 #endif
-
-
-// struct used to track down the game status
-typedef enum GAME_STATES{
-    STATE_TALKING,
-    STATE_START,
-    STATE_PROPOSAL_VOTING, 
-    STATE_LETTER_VOTING,
-    STATE_AGENT_WIN,
-    STATE_SPY_WIN,
-    STATE_PROPOSE,
-    STATE_GAMEINIT,
-    STATE_PROPOSE_WAIT,
-    STATE_PROPOSAL_VOTING_WAIT,
-    STATE_PROPOSAL_VOTE_RESOLVE,
-} GAME_STATES;
 
 
 
