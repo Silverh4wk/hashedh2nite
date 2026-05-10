@@ -2,30 +2,15 @@
 //
 // Example client/server chat application using SteamNetworkingSockets
 
-
 #include "helper.hpp"
 #include "servers.hpp"
 #include "ncursesDisplay.h"
 #include <iostream>
 
 
-size_t n_players;
-struct termios orig_termios;
-bool g_bQuit = false;
-std::mutex mutexUserInputQueue;
-std::queue< std::string > queueUserInput;
-std::thread *s_pThreadUserInput = nullptr;
 ChatServer *ChatServer::s_pCallbackInstance = nullptr;
 ChatClient *ChatClient::s_pCallbackInstance = nullptr;
-const uint16 DEFAULT_SERVER_PORT = 27020;
-SteamNetworkingMicroseconds g_logTimeZero;
-bool g_bSuppressPrintf = false;
-int nodesAgentsCanLose = 0; 
-int player_currently_proposing = 0;
-GAME_STATES CURRENT_STATE = STATE_GAMEINIT;
-int node = 0;
-const char* firstGuy;
-const char* secondGuy;
+    
 
 void PrintUsageAndExit( int rc = 1 )
 {
@@ -44,29 +29,36 @@ void PrintUsageAndExit( int rc = 1 )
 
 int main( int argc, const char *argv[] )
 {
-    /* comment these 2 down.
-     Issue:
-        Basically when a player types something and presses enter it will show what they typed then what they received from the server (SendStringToClient() ).
-        This is to make it the chat uniform. 
-        The former is ofc just echo terminal behaviour. 
-        3 Options:
-            1. No need to have the player get sent what they type (aka a players chat will look like so: 
-                Labubu1: Hey hey hey!
-                i am typing guys
-                Labubu2: Yeah we see you typing
-            2. Suppress echo but then that means the player cannot see character by character what they are typing only after they press enter they can see.
-            3. Dont suppress echo and still SendStringToClient() so it will be: 
-                Labubu1: Erm hello?
-                i am typing guys
-                (you) Labubu2: i am typing guys
-                Labubu3: okay!
-    ALLL THIS IS IRRELVANT AND GETS FIXED WHEN/IF WE MOVE TO NCURSES!!!!!!!!!!!!!!!!!!
-    */
+    
+    //  (NOTE:Hazim) moved all of the external inits here inside main instead of just keeping their scope globally
 
+    // External Variables initializations
+    bool g_bQuit = false; 
+    bool g_bSuppressPrintf = false;
+    const uint16 DEFAULT_SERVER_PORT = 27020;
+    SteamNetworkingMicroseconds g_logTimeZero; // A local timestamp
+    
+    std::mutex mutexUserInputQueue;
+    std::queue< std::string > queueUserInput;
+    std::thread *s_pThreadUserInput = nullptr;
+    
+    GAME_STATES CURRENT_STATE = STATE_GAMEINIT;
+    size_t n_players; 
+    int node = 0; 
+    int nodesAgentsCanLose = 0; 
+    int player_currently_proposing = 0;
+    const char* firstGuy;
+    const char* secondGuy;
+    
+    //server global flags 
     bool bServer = false; 
     bool bClient = false;
+    
+    //port init
     int nPort = DEFAULT_SERVER_PORT;
-    SteamNetworkingIPAddr addrServer; addrServer.Clear();
+
+    SteamNetworkingIPAddr addrServer;
+    addrServer.Clear();
 
     for ( int i = 1 ; i < argc ; ++i )
     {
@@ -84,6 +76,7 @@ int main( int argc, const char *argv[] )
                 continue;
             }
         }
+
         if ( !strcmp( argv[i], "--port" ) )
         {
             ++i;
@@ -127,7 +120,7 @@ int main( int argc, const char *argv[] )
     {
      n_players = 0;
     // Lobby Setup
-     system("stty sane");
+     system("stty sane"); //restore the terminal to a sane state 
      Printf("Number of players: ");
      while (!(std::cin >> n_players)) {
          std::cin.clear();
@@ -138,7 +131,9 @@ int main( int argc, const char *argv[] )
     Printf("Number of players: %zu\n", n_players);
     ChatServer server;
         server.Run( (uint16)nPort, n_players );
-    }    ShutdownSteamDatagramConnectionSockets();
+    }
+    
+    ShutdownSteamDatagramConnectionSockets();
 
     // Ug, why is there no simple solution for portable, non-blocking console user input?
     // Just nuke the process
