@@ -32,7 +32,6 @@ class Player;
 class ChatServer
 {
 public:
-    int numReadied = 0;
 
     static ChatServer  *s_pCallbackInstance;
     
@@ -42,8 +41,6 @@ public:
 
     ISteamNetworkingSockets *m_pInterface;
 
-    size_t m_maxPlayers;
-    
     struct Client_t
     {
         std::string m_sNick;

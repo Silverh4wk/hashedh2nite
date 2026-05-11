@@ -23,40 +23,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////
 
-void ChatServer::win(int whoWon){
-        if(whoWon){
-            // agent won!!! 
-        }
-        else{
-            // spy won!!1
-        }   
-
-}
-void ChatServer::playerPropose(std::string playerName) {
-    char temp[1024];
-    int howManyInNode = 2;
-
-    if (node > 2) {
-        howManyInNode = 3;
-    }
-
-    // Iterate and check, if player then send message...
-    std::string strTemp = std::string("%d", howManyInNode);
-    sprintf(temp, "Propose %s players", strTemp.c_str());
-    auto it = m_mapClients.begin();
-    if (it != m_mapClients.end())
-        for (auto &c : m_mapClients) {
-            if (c.second.player.getName() == playerName ) {
-                SendStringToClient(c.first, temp);
-                for (int x = 0; x<howManyInNode; x++){
-                    sprintf(temp, "Enter the index of player %d", x);
-                    SendStringToClient(c.first, temp);
-
-                }
-
-            }
-        }
-}
 void ChatServer::Run( uint16 nPort, size_t mxplayers )
 {
     m_maxPlayers = mxplayers;
@@ -91,11 +57,11 @@ void ChatServer::Run( uint16 nPort, size_t mxplayers )
 
 	// Agent wins
 	if(CURRENT_STATE == STATE_AGENT_WIN){
-	    win(AGENT_WIN);
+	    //win(AGENTS);
 	}
 	// Spy wins
 	if(CURRENT_STATE == STATE_SPY_WIN){
-	    win(SPY_WIN);
+	    //win(SPIES);
 	}
 
 	if(CURRENT_STATE == STATE_START){
@@ -105,7 +71,7 @@ void ChatServer::Run( uint16 nPort, size_t mxplayers )
 	    sprintf(temp, "The player currently proposing is %s", currentProposalName.c_str()); 
 	    SendStringToAllClients(temp);
 	    CURRENT_STATE = STATE_PROPOSE;
-	    playerPropose(currentProposalName);
+	    //playerPropose(currentProposalName);
 	}
 
 
@@ -132,11 +98,6 @@ void ChatServer::Run( uint16 nPort, size_t mxplayers )
 
     m_pInterface->DestroyPollGroup( m_hPollGroup );
     m_hPollGroup = k_HSteamNetPollGroup_Invalid;
-}
-
-const size_t ChatServer::  GetMaxPlayers( void )
-{
-    return m_maxPlayers;
 }
 
 void ChatServer:: KickPlayerByName(const std::string& name)
@@ -182,7 +143,7 @@ void ChatServer::PollIncomingMessages()
 {
     char temp[ 1024 ];
     char tempToClient[ 1024 ];	
-
+    
     while ( !g_bQuit )
     {
 	ISteamNetworkingMessage *pIncomingMsg = nullptr;
@@ -213,9 +174,9 @@ void ChatServer::PollIncomingMessages()
 		++nick;
 
 	    // Let everybody else know they changed their name
-	    itClient->second.player.setName(nick);
-	    sprintf( temp, "%s shall henceforth be known as %s", itClient->second.player.getName().c_str(), nick );
-	    itClient->second.player.setName(nick);
+	    itClient->second.player->setName(nick);
+	    sprintf( temp, "%s shall henceforth be known as %s", itClient->second.player->getName().c_str(), nick );
+	    itClient->second.player->setName(nick);
 	    SendStringToAllClients( temp, itClient->first );
 
 	    // Respond to client
@@ -226,20 +187,20 @@ void ChatServer::PollIncomingMessages()
 	    SetClientNick( itClient->first, nick );
 	    continue;
 	}
-	if ( (strcmp(cmd, "/ready" )) == 0  && !itClient->second.player.isReady() )
+	if ( (strcmp(cmd, "/ready" )) == 0  && !itClient->second.player->isReady() )
 	{
-	    if( itClient->second.player.isReady() )
+	    if( itClient->second.player->isReady() )
 	    {
 		SendStringToClient(itClient->first, "Already ready..");
 
 	    }
 	    else
 	    {
-		itClient->second.player.setReady(true);
+		itClient->second.player->setReady(true);
 		numReadied++;
                 //(CHANGED) hard coded num of players for now
                 SendStringToAllClients(
-		    (itClient->second.player.getName() + "has readied up " + std::to_string(GetMaxPlayers() - numReadied) + " remain.").c_str() );
+		    (itClient->second.player->getName() + "has readied up " + std::to_string(GetMaxPlayers() - numReadied) + " remain.").c_str() );
 	    }
 	    continue; // try suppress local echo :(
 	}
@@ -258,64 +219,6 @@ void ChatServer::PollIncomingMessages()
 	SendStringToClient( itClient->first, tempToClient ); 
     }
 }
-
-std::string ChatServer::genWord()
-{
-    std::string word;
-    std::vector<std::string> wordList;
-    srand(time(0));
-    
-    // open file
-    // generate word
-    // wow
-    
-    wordList = initWordsList();
-    
-    size_t numOfWords = wordList.size();
-    int indexOfRandom = rand() % numOfWords + 1;            
-    return wordList.at(indexOfRandom); 
-}
-std::vector<std::string> ChatServer::generatePlayerNames(std::string word){
-}
-
-void ChatServer:: generateRoles(){
-    int numOfSpy;
-        int randomNum;
-        std::string nodeLose; 
-        char temp[1024];
-        int currSpies = 0;
-       
-        // bomboclat
-        numOfSpy = (n_players-1)/2;
-        nodesAgentsCanLose = numOfSpy+1;
-
-        for(int x = 0; x<n_players;x++){
-            auto it = m_mapClients.begin();
-            randomNum = std::rand() % 2; 
-            
-            if(randomNum == 1 && (currSpies < numOfSpy)){
-                it->second.player.isSpy = 1; 
-                currSpies++;
-                sprintf(temp, "Your role is Spy!! You win if the agents cant find you in %s nodes", nodeLose.c_str());
-                SendStringToClient(it->first, temp);
-
-            }
-            else{
-                sprintf(temp, "Your role is Agent!! You win if you figure out the word in less than %s nodes", nodeLose.c_str());
-                SendStringToClient(it->first, temp);
-                it->second.player.isSpy = 0;
-            }
-            it++; 
-
-        }
-
-}
-
-void ChatServer::startGame(){
-   
-}
-
-
 
 void ChatServer::PollLocalUserInput()
 {
