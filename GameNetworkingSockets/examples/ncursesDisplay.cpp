@@ -1,5 +1,7 @@
 #include "ncursesDisplay.h"
-#include "servers.hpp"
+#include "global.h"
+#include "client.h"
+#include "server.hpp"
 #include "helper.hpp"
 #include <curses.h>
 #include <thread>

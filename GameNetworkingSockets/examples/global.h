@@ -3,7 +3,7 @@
 #include <thread>
 #include <mutex>
 #include <queue>
-#include "hashed2nite.h"
+#include "game.h"
 
 #include "../include/steam/steamnetworkingsockets.h"
 #include "../include/steam/isteamnetworkingutils.h"
@@ -12,23 +12,12 @@
 #include <steam/steam_api.h>
 #endif
 
-
-
-
 //servers externs
 extern bool g_bQuit;
 extern bool g_bSuppressPrintf;
 extern const uint16 DEFAULT_SERVER_PORT;
-extern SteamNetworkingMicroseconds g_logTimeZero; //define this lates
+extern SteamNetworkingMicroseconds g_logTimeZero; //define this later
 
-//game externs
-extern int node;
-extern size_t n_players;
-extern const char* firstGuy;
-extern const char* secondGuy;
-extern int nodesAgentsCanLose;
-extern int player_currently_proposing;
-extern GAME_STATES CURRENT_STATE;
 
 /////////////////////////////////////////////////////////////////////////////
 //

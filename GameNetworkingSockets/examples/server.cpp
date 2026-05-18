@@ -1,8 +1,7 @@
-
+#include <cstdint>
 #include <cstdlib>
 #include <ctime>
 #include <cmath>
-#include <assert.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <string.h>
@@ -12,10 +11,9 @@
 #include <cctype>
 #include <sstream>
 #include <fstream>
-#include "servers.hpp"
+#include "server.hpp"
 #include "helper.hpp"
 #include <assert.h>
-
 
 /////////////////////////////////////////////////////////////////////////////
 //
@@ -23,23 +21,34 @@
 //
 /////////////////////////////////////////////////////////////////////////////
 
-void ChatServer::Run( uint16 nPort, size_t mxplayers )
+
+ChatServer::~ChatServer() = default; // delete the game
+
+void ChatServer::Run( uint16 nPort, size_t max_players )
 {
-    m_maxPlayers = mxplayers;
+
+    //create the game and init its status
+    m_game = std::make_unique < Game >(  );
+    m_game->init( max_players );
+    m_game->setMaxPlayers( max_players );
 
     // Select instance to use.  For now we'll always use the default.
     // But we could use SteamGameServerNetworkingSockets() on Steam.
     m_pInterface = SteamNetworkingSockets();
     // Start listening
+    
     SteamNetworkingIPAddr serverLocalAddr;
     serverLocalAddr.Clear();
     serverLocalAddr.m_port = nPort;
     SteamNetworkingConfigValue_t opt;
     opt.SetPtr( k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, (void*)SteamNetConnectionStatusChangedCallback);
     m_hListenSock = m_pInterface->CreateListenSocketIP( serverLocalAddr, 1, &opt );
+
     if ( m_hListenSock == k_HSteamListenSocket_Invalid )
         FatalError( "Failed to listen on port %d", nPort );
+
     m_hPollGroup = m_pInterface->CreatePollGroup();
+
     if ( m_hPollGroup == k_HSteamNetPollGroup_Invalid )
         FatalError( "Failed to listen on port %d", nPort );
     Printf( "Server listening on port %d\n", nPort );
@@ -48,7 +57,8 @@ void ChatServer::Run( uint16 nPort, size_t mxplayers )
     {
 	char temp[1024];
 
-	std::string currentProposalName;
+	const Player* proposer;
+	std::string current_proposal_name;
 	PollIncomingMessages();
 	PollConnectionStateChanges();
 	PollLocalUserInput();
@@ -56,21 +66,24 @@ void ChatServer::Run( uint16 nPort, size_t mxplayers )
 	// Game loop
 
 	// Agent wins
-	if(CURRENT_STATE == STATE_AGENT_WIN){
+	if(m_game->getState() == STATE_AGENT_WIN){
 	    //win(AGENTS);
 	}
 	// Spy wins
-	if(CURRENT_STATE == STATE_SPY_WIN){
+	if(m_game->getState() == STATE_SPY_WIN){
 	    //win(SPIES);
 	}
 
-	if(CURRENT_STATE == STATE_START){
+	if(m_game->getState() == STATE_START){
 	    // get the first playe's position 
-	    // modolu of m_players - 1 
-	    currentProposalName = this->m_mapClients.at(player_currently_proposing).player.getName().c_str();
-	    sprintf(temp, "The player currently proposing is %s", currentProposalName.c_str()); 
+	    // modolu of m_players - 1
+	    // i didnt read this code, i just changed variable so dont yell at me later
+	    int proposing_player_index = m_game->getProposingPlayerIndex();
+	    proposer = m_game->getPlayerByIndex(proposing_player_index);
+	    if ( proposer ) current_proposal_name = proposer->getName();
+	    sprintf(temp, "The player currently proposing is %s", current_proposal_name.c_str()); 
 	    SendStringToAllClients(temp);
-	    CURRENT_STATE = STATE_PROPOSE;
+	    m_game->setState(STATE_PROPOSE);
 	    //playerPropose(currentProposalName);
 	}
 
@@ -105,7 +118,7 @@ void ChatServer:: KickPlayerByName(const std::string& name)
     // loop through clients and check their nick
     for ( auto it = m_mapClients.begin(); it != m_mapClients.end(); it++ )
     {
-	if ( it->second.m_sNick == name )
+	if ( it->second == name )
 	{
 	    SendStringToClient(it->first, "You have been kicked. Goodbye Creature.");
 	    // At some point probably use an exit code from here: https://partner.steamgames.com/doc/api/steamnetworkingtypes#ESteamNetConnectionEnd
@@ -124,6 +137,22 @@ void ChatServer:: KickPlayerByName(const std::string& name)
 }
 
 
+void ChatServer::SendStringToPlayer(const std::string& player_name, const char* str)
+{
+
+    for (const auto& [conn, name] : m_mapClients)
+    {
+        if (name == player_name)
+        {
+            SendStringToClient(conn, str);
+            return;
+        }
+    }
+    
+	Printf( "Couldnt find player: %s, no string was sent", player_name.c_str() );
+    return;
+}
+
 
 void ChatServer::SendStringToClient( HSteamNetConnection conn, const char *str )
 {
@@ -139,7 +168,7 @@ void ChatServer::SendStringToAllClients( const char *str, HSteamNetConnection ex
     }
 }
 
-void ChatServer::PollIncomingMessages()
+void ChatServer::PollIncomingMessages()//checklater
 {
     char temp[ 1024 ];
     char tempToClient[ 1024 ];	
@@ -169,14 +198,15 @@ void ChatServer::PollIncomingMessages()
 
 	if ( strncmp( cmd, "/nick", 5 ) == 0 )
 	{
+	    const std::string old_nick = itClient->second;
+
 	    const char *nick = cmd+5;
-	    while ( isspace(*nick) )
+	    while ( isspace( *nick ) )
 		++nick;
 
 	    // Let everybody else know they changed their name
-	    itClient->second.player->setName(nick);
-	    sprintf( temp, "%s shall henceforth be known as %s", itClient->second.player->getName().c_str(), nick );
-	    itClient->second.player->setName(nick);
+	    itClient->second = nick;
+	    sprintf( temp, "%s shall henceforth be known as %s", itClient->second.c_str(), nick );
 	    SendStringToAllClients( temp, itClient->first );
 
 	    // Respond to client
@@ -185,36 +215,43 @@ void ChatServer::PollIncomingMessages()
 
 	    // Actually change their name (We getting rid of this yes ?)
 	    SetClientNick( itClient->first, nick );
+	    Player* player = m_game->getPlayer(old_nick);
+	    if(!player) return;
+	    player->setName( nick );
 	    continue;
 	}
-	if ( (strcmp(cmd, "/ready" )) == 0  && !itClient->second.player->isReady() )
+	if ( (strcmp( cmd, "/ready" ) ) )
 	{
-	    if( itClient->second.player->isReady() )
+	    Player* player = m_game->getPlayer( itClient->second );
+	    if ( !player ) continue;
+	    if( player->isReady() )
 	    {
 		SendStringToClient(itClient->first, "Already ready..");
-
 	    }
 	    else
 	    {
-		itClient->second.player->setReady(true);
-		numReadied++;
-                //(CHANGED) hard coded num of players for now
+		player->setReady(true);
+		m_game->incReadyCount();
+
                 SendStringToAllClients(
-		    (itClient->second.player->getName() + "has readied up " + std::to_string(GetMaxPlayers() - numReadied) + " remain.").c_str() );
+		    (itClient->second + "has readied up " + std::to_string(m_game->getMaxPlayers() - m_game->getReadyCount()) + " remain.").c_str() );
 	    }
 	    continue; // try suppress local echo :(
 	}
 
 	// if no. of players == lobby players, start game..
-	if (numReadied == m_maxPlayers)
+	if ( m_game->getReadyCount() == m_game->getMaxPlayers() )
 	{
 	    SendStringToAllClients("All players ready! Starting game...");
-	    startGame();
+	    m_game->startGame( this );
 	}
-			
+
+	// do we supress this if there are players inside a node?
+	// and only limit communication to those
 	// Assume it's just a ordinary chat message, dispatch to everybody else
-	sprintf( temp, "%s: %s", itClient->second.m_sNick.c_str(), cmd );
-	sprintf(tempToClient, "(you) %s: %s", itClient->second.m_sNick.c_str(), cmd);
+
+	sprintf( temp, "%s: %s", itClient->second.c_str(), cmd );
+	sprintf(tempToClient, "(you) %s: %s", itClient->second.c_str(), cmd);
 	SendStringToAllClients( temp, itClient->first );
 	SendStringToClient( itClient->first, tempToClient ); 
     }
@@ -257,7 +294,7 @@ void ChatServer::SetClientNick( HSteamNetConnection hConn, const char *nick )
 {
 
     // Remember their nick
-    m_mapClients[hConn].m_sNick = nick;
+    m_mapClients[hConn] = nick;
     
     // Set the connection name, too, which is useful for debugging
     m_pInterface->SetConnectionName( hConn, nick );
@@ -293,14 +330,16 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	    if ( pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally )
 	    {
 		pszDebugLogAction = "problem detected locally";
-		sprintf( temp, "Alas, %s hath fallen into shadow.  (%s)", itClient->second.m_sNick.c_str(), pInfo->m_info.m_szEndDebug );
+		//m_game->removePlayer(itClient->first);
+                sprintf( temp, "Alas, %s hath fallen into shadow.  (%s)", itClient->second.c_str(), pInfo->m_info.m_szEndDebug );
 	    }
 	    else
 	    {
 		// Note that here we could check the reason code to see if
 		// it was a "usual" connection or an "unusual" one.
 		pszDebugLogAction = "closed by peer";
-		sprintf( temp, "%s hath departed", itClient->second.m_sNick.c_str() );
+		//m_game->removePlayer(itClient->first);
+		sprintf( temp, "%s hath departed", itClient->second.c_str() );
 	    }
 
 	    // Spew something to our own log.  Note that because we put their nick
@@ -369,12 +408,15 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	// but not logged on) until them.  I'm trying to keep this example
 	// code really simple.
 	char nick[ 64 ];
-	sprintf( nick, "Player%luu", 0 + ( rand() % n_players +1 ) );
+	m_game->addPlayer( nick );
+	sprintf( nick, "Player%lu", 0 + ( rand() % m_game->getCurrentPlayers() +1 ) );
 
 	// Send them a welcome message
 	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 
 	SendStringToClient( pInfo->m_hConn, temp ); 
-		    
+	// gonna store the player connection too when we add a player
+	Player* player = m_game->getPlayer(nick);
+	if (player) player->setConnection(pInfo->m_hConn);
 	// Also send them a list of everybody who is already connected
 	if ( m_mapClients.empty() )
 	{
@@ -384,7 +426,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	{
 	    sprintf( temp, "%d companions greet you:", (int)m_mapClients.size() ); 
 	    for ( auto &c: m_mapClients )
-		SendStringToClient( pInfo->m_hConn, c.second.m_sNick.c_str() ); 
+		SendStringToClient( pInfo->m_hConn, c.second.c_str() ); 
 	}
 
 	// Let everybody else know who they are for now
@@ -414,199 +456,3 @@ void ChatServer::PollConnectionStateChanges()
     s_pCallbackInstance = this;
     m_pInterface->RunCallbacks();
 }
-
-
-
-/////////////////////////////////////////////////////////////////////////////
-//
-// ChatClient
-//
-/////////////////////////////////////////////////////////////////////////////
-
-void ChatClient::Run( const SteamNetworkingIPAddr &serverAddr )
-{
-    // Select instance to use.  For now we'll always use the default.
-    m_pInterface = SteamNetworkingSockets();
-
-    // Start connecting
-    char szAddr[ SteamNetworkingIPAddr::k_cchMaxString ];
-    serverAddr.ToString( szAddr, sizeof(szAddr), true );
-    Printf( "Connecting to chat server at %s", szAddr );
-    SteamNetworkingConfigValue_t opt;
-    opt.SetPtr( k_ESteamNetworkingConfig_Callback_ConnectionStatusChanged, (void*)SteamNetConnectionStatusChangedCallback );
-    m_hConnection = m_pInterface->ConnectByIPAddress( serverAddr, 1, &opt );
-    if ( m_hConnection == k_HSteamNetConnection_Invalid )
-	FatalError( "Failed to create connection" );
-
-    while ( !g_bQuit )
-    {
-	PollIncomingMessages();
-	PollConnectionStateChanges();
-	PollLocalUserInput();
-	std::this_thread::sleep_for( std::chrono::milliseconds( 10 ) );
-    }
-}
-void ChatClient:: PollIncomingMessages()
-{
-    while ( !g_bQuit )
-    {
-	ISteamNetworkingMessage *pIncomingMsg = nullptr;
-	int numMsgs = m_pInterface->ReceiveMessagesOnConnection( m_hConnection, &pIncomingMsg, 1 );
-	if ( numMsgs == 0 )
-	    break;
-	if ( numMsgs < 0 )
-	    FatalError( "Error checking for messages" );
-		
-	// Just echo anything we get from the server
-	//fwrite( pIncomingMsg->m_pData, 1, pIncomingMsg->m_cbSize, stdout );
-	fputc( '\n', stdout );
-
-	std::string msg((const char*)pIncomingMsg->m_pData, pIncomingMsg->m_cbSize);
-        pushIncomingMessage(msg);   
-	// We don't need this anymore.
-	pIncomingMsg->Release();
-    }
-}
-
-
-void ChatClient::PollLocalUserInput()
-{
-    std::string cmd;
-    while ( popOutgoingMessage(cmd))
-    {
-
-	// Check for known commands
-	if ( strcmp( cmd.c_str(), "/quit" ) == 0 )
-	{
-	    g_bQuit = true;
-	    Printf( "Disconnecting from chat server" );
-		    
-	    // Close the connection gracefully.
-	    // We use linger mode to ask for any remaining reliable data
-	    // to be flushed out.  But remember this is an application
-	    // protocol on UDP.  See ShutdownSteamDatagramConnectionSockets
-	    m_pInterface->CloseConnection( m_hConnection, 0, "Goodbye", true );
-	    break;
-	}
-
-	// Anything else, just send it to the server and let them parse it
-	m_pInterface->SendMessageToConnection( m_hConnection, cmd.c_str(), (uint32)cmd.length(), k_nSteamNetworkingSend_Reliable, nullptr );
-    }
-}
-
-
-void ChatClient::pushIncomingMessage(const std::string& msg)
-{
-    std::lock_guard<std::mutex> lock(m_incomingMutex);
-    m_incomingMessages.push(msg);
-}
-
-bool ChatClient::popIncomingMessage(std::string& outMsg)
-{
-    std::lock_guard<std::mutex> lock(m_incomingMutex);
-    if (m_incomingMessages.empty()) return false;
-    outMsg = m_incomingMessages.front();
-    m_incomingMessages.pop();
-    return true;
-}
-
-void ChatClient::pushOutgoingMessage(const std::string& msg)
-{
-    std::lock_guard<std::mutex> lock(m_outgoingMutex);
-    m_outgoingMessages.push(msg);
-}
-
-bool ChatClient::popOutgoingMessage(std::string& outMsg)
-{
-    std::lock_guard<std::mutex> lock(m_outgoingMutex);
-    if (m_outgoingMessages.empty()) return false;
-    outMsg = m_outgoingMessages.front();
-    m_outgoingMessages.pop();
-    return true;
-}
-
-// void ChatClient::sendUserMessage(const std::string& msg)
-// {
-//     if (m_hConnection != k_HSteamNetConnection_Invalid)
-//     {
-//         m_pInterface->SendMessageToConnection(m_hConnection, msg.c_str(),
-//         (uint32)msg.size(),
-//                                               k_nSteamNetworkingSend_Reliable,
-//                                               nullptr);
-//     }
-// }
-void ChatClient::sendUserMessage(const std::string& msg)
-{
-    if (m_hConnection != k_HSteamNetConnection_Invalid)
-    {
-        m_pInterface->SendMessageToConnection(m_hConnection, msg.c_str(), (uint32)msg.size(),
-                                              k_nSteamNetworkingSend_Reliable, nullptr);
-    }
-}
-
-
-void ChatClient::PollConnectionStateChanges()
-{
-    s_pCallbackInstance = this;
-    m_pInterface->RunCallbacks();
-}
- 
-void ChatClient::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChangedCallback_t *pInfo )
-{
-    assert( pInfo->m_hConn == m_hConnection || m_hConnection == k_HSteamNetConnection_Invalid );
-
-    // What's the state of the connection?
-    switch ( pInfo->m_info.m_eState )
-    {
-    case k_ESteamNetworkingConnectionState_None:
-	// NOTE: We will get callbacks here when we destroy connections.  You can ignore these.
-	break;
-	
-    case k_ESteamNetworkingConnectionState_ClosedByPeer:
-    case k_ESteamNetworkingConnectionState_ProblemDetectedLocally:
-    {
-	g_bQuit = true;
-
-	// Print an appropriate message
-	if ( pInfo->m_eOldState == k_ESteamNetworkingConnectionState_Connecting )
-	{
-	    // Note: we could distinguish between a timeout, a rejected connection,
-	    // or some other transport problem.
-	    Printf( "We sought the remote host, yet our efforts were met with defeat.  (%s)", pInfo->m_info.m_szEndDebug );
-	}
-	else if ( pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally )
-	{
-	    Printf( "Alas, troubles beset us; we have lost contact with the host.  (%s)", pInfo->m_info.m_szEndDebug );
-	}
-	else
-	{
-	    // NOTE: We could check the reason code for a normal disconnection
-	    Printf( "The host hath bidden us farewell.  (%s)", pInfo->m_info.m_szEndDebug );
-	}
-
-	// Clean up the connection.  This is important!
-	// The connection is "closed" in the network sense, but
-	// it has not been destroyed.  We must close it on our end, too
-	// to finish up.  The reason information do not matter in this case,
-	// and we cannot linger because it's already closed on the other end,
-	// so we just pass 0's.
-	m_pInterface->CloseConnection( pInfo->m_hConn, 0, nullptr, false );
-	m_hConnection = k_HSteamNetConnection_Invalid;
-	break;
-    }
-
-    case k_ESteamNetworkingConnectionState_Connecting:
-	// We will get this callback when we start connecting.
-	// We can ignore this.
-	break;
-
-    case k_ESteamNetworkingConnectionState_Connected:
-	Printf( "Connected to server OK" );
-	break;
-
-    default:
-	// Silences -Wswitch
-	break;
-    }
-}
-

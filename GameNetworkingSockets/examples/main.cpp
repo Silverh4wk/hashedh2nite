@@ -1,18 +1,27 @@
-//====== Copyright Valve Corporation, All rights reserved. ====================
-//
-// Example client/server chat application using SteamNetworkingSockets
 
+#include "game.h"
 #include "helper.hpp"
-#include "servers.hpp"
+#include "game.h"
+#include "server.hpp"
+#include "client.h"
 #include "ncursesDisplay.h"
 #include <iostream>
-
-
+    
 ChatServer *ChatServer::s_pCallbackInstance = nullptr;
 ChatClient *ChatClient::s_pCallbackInstance = nullptr;
-    
 
-void PrintUsageAndExit( int rc = 1 )
+// External Variables initializations
+const uint16 DEFAULT_SERVER_PORT = 27020;
+SteamNetworkingMicroseconds g_logTimeZero; // A local timestamp
+
+bool g_bQuit = false;
+bool g_bSuppressPrintf = false;
+    
+std::mutex mutexUserInputQueue;                     
+std::queue< std::string > queueUserInput;           
+std::thread *s_pThreadUserInput =nullptr;
+
+static inline void PrintUsageAndExit( int rc = 1 )
 {
     fflush(stderr);
     printf(
@@ -29,27 +38,9 @@ void PrintUsageAndExit( int rc = 1 )
 
 int main( int argc, const char *argv[] )
 {
-    
-    //  (NOTE:Hazim) moved all of the external inits here inside main instead of just keeping their scope globally
 
-    // External Variables initializations
-    bool g_bQuit = false; 
-    bool g_bSuppressPrintf = false;
-    const uint16 DEFAULT_SERVER_PORT = 27020;
-    SteamNetworkingMicroseconds g_logTimeZero; // A local timestamp
-    
-    std::mutex mutexUserInputQueue;
-    std::queue< std::string > queueUserInput;
-    std::thread *s_pThreadUserInput = nullptr;
-    
-    GAME_STATES CURRENT_STATE = STATE_GAMEINIT;
+    //  (NOTE:Hazim) moved all of the external inits here inside main instead of just keeping their scope globally
     size_t n_players; 
-    int node = 0; 
-    int nodesAgentsCanLose = 0; 
-    int player_currently_proposing = 0;
-    const char* firstGuy;
-    const char* secondGuy;
-    
     //server global flags 
     bool bServer = false; 
     bool bClient = false;

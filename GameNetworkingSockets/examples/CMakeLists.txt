@@ -37,13 +37,14 @@ if( BUILD_EXAMPLES )
 	#
 
 	add_executable(
-		example_chat
-		example_chat.cpp
+		hashed2nite
+		game.cpp
+		main.cpp
 		ncursesDisplay.cpp
-		servers.cpp)
+		server.cpp
+		client.cpp)
 
-	target_link_libraries(example_chat GameNetworkingSockets::shared Curses::Curses )
-
-	add_sanitizers(example_chat)
+	target_link_libraries(hashed2nite GameNetworkingSockets::shared ncurses )
+	add_sanitizers(hashed2nite)
 
 endif()
