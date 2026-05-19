@@ -12,6 +12,12 @@ Player::getVote( void )  { return m_vote;}
 void
 Player::setVote( VOTESTATE vote ) {this->m_vote = vote;}
 
+Player::Player(std::string initName){
+    Printf("hello");
+    this->m_name =initName;
+}
+
+Player::Player() : m_name("") {}  
 void
 Player::setName( std::string name) { m_name = name; }
 
@@ -52,8 +58,7 @@ Game::init( size_t max_players )
 void
 Game::addPlayer( const std::string& name )
 {
-    m_players.emplace_back( Player( ) );
-    m_players.back().setName( name );
+    m_players.emplace_back( Player(name));
 }
 
 void
@@ -74,21 +79,22 @@ Game::removePlayer( const std::string& name )
 }
 
 
-Player*
-Game::getPlayer( const std::string& name )
-{
-    auto it = std::find_if(m_players.begin(), m_players.end(), [&name]( const Player &p )
-	{
-	    return p.getName( ) == name;
-	} );
 
-    if ( it != m_players.end( ) ) {
-	return &( *it );
+Player*
+Game::getPlayer(const std::string& name)
+{
+    auto it = std::find_if(m_players.begin(), m_players.end(), [&name](const Player& p)
+    {
+        Printf("Comparing: stored='%s' vs searched='%s'\n", p.getName().c_str(), name.c_str());
+        return p.getName() == name;
+    });
+
+    if (it != m_players.end()) {
+        return &(*it);
     } else {
-        Printf( "Player %s not found.", name.c_str( ) );
-	return nullptr;
+        Printf("Player %s not found.", name.c_str());
+        return nullptr;
     }
-    
 }
 
 const Player*
@@ -108,7 +114,7 @@ Game::startGame( ChatServer* server )
 
     playerNames = generatePlayerNames( word );
 
-    setEveryoneNick( server, playerNames );
+    //setEveryoneNick( server, playerNames );
 
     // get the roles
     generateRoles( server );
@@ -210,17 +216,17 @@ void
 Game::setEveryoneNick( ChatServer* server,std::vector<std::string> &players ){
     
     for( int x = 0; x < n_players; x++ ){
-	auto it = server->m_mapClients.begin( );
-	it->second=  players[ x ];
-	it++; 
+        auto it = server->m_mapClients.begin( );
+        it->second=  players[ x ];
+        it++; 
     }
 }
 
 
 std::vector<std::string>
 Game::generatePlayerNames( std::string word ){
-    
-// grab all names with each letters
+
+    // grab all names with each letters
     std::vector<std::string> playerNames;
     int randomNum, currNameIndex = 0;
     std::vector<char> vec( word.begin( ), word.end( ) );
@@ -264,10 +270,11 @@ void Game::generateRoles( ChatServer* server )
     std::vector<TEAMS> roles( m_players.size( ), AGENTS ); //default is agent
 
     // bomboclat
-    num_of_spies = ( n_players-1 )/ 2;
-
+    if(!((n_players-1) ==2)){
+        num_of_spies = ( n_players-1 )/ 2;
+    }
     m_nodes_agents_can_lose = m_spies.size( ) + 1;
-	
+
     while ( curr_spies < num_of_spies )
     {
         int index = rand( ) % m_players.size( );

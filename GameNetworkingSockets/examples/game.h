@@ -42,6 +42,8 @@ class Player
 {
 public:
     
+    Player();
+    Player (std::string);
     VOTESTATE getVote( void ) ;
     void  setVote( VOTESTATE vote ) ;
     void setName( std::string name );
@@ -127,7 +129,7 @@ private:
     //ik we can just check the flag inside player
     //but maybe its cleaner to do it this way
     
-    std::vector<Player> m_players;
+    std::vector<Player> m_players ;
     std::vector<Player*> m_agents;
     std::vector<Player*> m_spies;
 
