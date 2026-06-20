@@ -63,6 +63,7 @@ private:
     VOTESTATE m_vote = DIDNT_VOTE;
     HSteamNetConnection m_connection; 
     
+
     };
 
 // forward declaration
@@ -89,7 +90,7 @@ public:
 
     void win( TEAMS team );
     
-    Player* getPlayer( const std::string& name );
+    Player* getPlayerByName( const std::string& name );
     
     size_t getMaxPlayers( void ) const;
     
@@ -122,8 +123,11 @@ public:
     GAME_STATES getState() const ;
 
     const Player* getPlayerByIndex(size_t index) const;
+
     
     int getProposingPlayerIndex() const; 
+
+    void proposal_voting(std::string voter, const char* cmd, int* tallyVoteState, int* voteCount, ChatServer* server);
 
 private:
     //ik we can just check the flag inside player
@@ -141,7 +145,7 @@ private:
     const char* first_guy;
     const char* second_guy;
     
-    
+
     size_t n_players = 0;
     size_t n_players_ready = 0;
     size_t m_max_players = 0;

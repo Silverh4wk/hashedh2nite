@@ -173,6 +173,9 @@ void ChatServer::PollIncomingMessages()//checklater
     char temp[ 1024 ];
     char tempToClient[ 1024 ];	
     
+    static int tallyVoteState = 0;
+    static int voteCount = 0;
+
     while ( !g_bQuit )
     {
 	ISteamNetworkingMessage *pIncomingMsg = nullptr;
@@ -215,14 +218,14 @@ void ChatServer::PollIncomingMessages()//checklater
 
 	    // Actually change their name (We getting rid of this yes ?)
 	    SetClientNick( itClient->first, nick );
-	    Player* player = m_game->getPlayer(old_nick);
+	    Player* player = m_game->getPlayerByName(old_nick);
 	    if(!player) return;
 	    player->setName( nick );
 	    continue;
 	}
 	if ( (strcmp( cmd, "/ready" ) ) == 0 )
 	{
-	    Player* player = m_game->getPlayer( itClient->second );
+	    Player* player = m_game->getPlayerByName( itClient->second );
 	    if ( !player ) continue;
 	    if( player->isReady() )
 	    {
@@ -245,6 +248,15 @@ void ChatServer::PollIncomingMessages()//checklater
 	    SendStringToAllClients("All players ready! Starting game...");
 	    m_game->startGame( this );
 	}
+
+
+ int playerChoice;
+    if(m_game->getState() == STATE_PROPOSAL_VOTING_WAIT){
+        auto itClient = m_mapClients.find( pIncomingMsg->m_conn );
+        // unsure if tallyVoteState and voteCount can be moved to be owned by game
+        m_game->proposal_voting(itClient->second, cmd, &tallyVoteState, &voteCount, this); 
+       }
+
 
 	// do we supress this if there are players inside a node?
 	// and only limit communication to those
@@ -443,7 +455,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 
 	SendStringToClient( pInfo->m_hConn, temp ); 
 	// gonna store the player connection too when we add a player
-	Player* player = m_game->getPlayer(nick);
+	Player* player = m_game->getPlayerByName(nick);
     if(!player) Printf("crash?");
 	if (player) player->setConnection(pInfo->m_hConn);
 	// Also send them a list of everybody who is already connected

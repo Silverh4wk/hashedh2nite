@@ -81,7 +81,7 @@ Game::removePlayer( const std::string& name )
 
 
 Player*
-Game::getPlayer(const std::string& name)
+Game::getPlayerByName(const std::string& name)
 {
     auto it = std::find_if(m_players.begin(), m_players.end(), [&name](const Player& p)
     {
@@ -103,12 +103,54 @@ Game::getPlayerByIndex(size_t index) const {
     return &m_players[index];
 }
 
+
+
 void
+Game::proposal_voting( std::string voter, const char* cmd, int* tallyVoteState, int* voteCount, ChatServer* server ) 
+{
+    char temp[ 1024 ];
+    int playerChoice;
+
+    // find the player
+    Player* player = getPlayerByName(voter);
+
+    printf(temp, "%d",std::stoi(strdup(cmd))); 
+    Printf(temp);
+
+    if(player->getVote() == 2){
+        Printf("%d",std::stoi(strdup(cmd)) );
+        playerChoice = std::stoi(strdup(cmd)); 
+
+        if(playerChoice == 1){
+            (*tallyVoteState)++;
+            (*voteCount)++;
+        }
+        else if(playerChoice == 0){
+            (*tallyVoteState)--;
+            (*voteCount)++;
+
+        }
+        if(*voteCount == n_players){
+            m_current_state = STATE_PROPOSAL_VOTE_RESOLVE; 
+        }
+        sprintf(temp, "%s voted %d. Currently the tally is %d", voter.c_str(), playerChoice, *tallyVoteState );
+
+        server->SendStringToAllClients(temp);
+
+
+        playerChoice = -1;
+
+
+
+
+    }
+}
+    void
 Game::startGame( ChatServer* server )
 {
     m_node = 0;   
     m_current_state = STATE_START;
-    
+
     std::vector<std::string> playerNames;
     std::string word = genWord( );
 
@@ -120,7 +162,7 @@ Game::startGame( ChatServer* server )
     generateRoles( server );
 
     //server->SendStringToAllClients( currentNode( ) );
-    
+
 }
 
 void Game::playerPropose( ChatServer* server, std::string playerName )
@@ -155,22 +197,22 @@ Game::getReadyCount( ) const
     return n_players_ready;
 }
 
- size_t
+size_t
 Game::getCurrentPlayers( ) const
 {
     return m_players.size(); 
 }
 
-void
+    void
 Game::win( TEAMS team )
 {
     if( team == AGENTS ){
-	// agent won!!! 
+        // agent won!!! 
     }
     else{
-            // spy won!!1
+        // spy won!!1
     }   
-    
+
 }
 
 size_t Game::getMaxPlayers ( void ) const
@@ -178,19 +220,19 @@ size_t Game::getMaxPlayers ( void ) const
     return m_max_players;    
 }
 
-void
+    void
 Game::setMaxPlayers( size_t max )
 {
     m_max_players = max;
 }
 
-void
+    void
 Game::setState( GAME_STATES state )
 {
     m_current_state = state;
 }
 
-void
+    void
 Game::setProposingPlayerIndex( int index )
 {
     m_player_currently_proposing = index;
@@ -214,7 +256,7 @@ Game::getProposingPlayerIndex( ) const
 }
 void
 Game::setEveryoneNick( ChatServer* server,std::vector<std::string> &players ){
-    
+
     for( int x = 0; x < n_players; x++ ){
         auto it = server->m_mapClients.begin( );
         it->second=  players[ x ];
@@ -235,23 +277,23 @@ Game::generatePlayerNames( std::string word ){
     std::vector<std::string> allNames = initWordsList( "player_list.txt" );
 
     while( true ){
-	
-	if( currNameIndex++ == n_players ){
-	    return playerNames;
-	}
 
-	
-	int randomNum = rand( ) % allNames.size( ) + 1;
-	playerName = allNames.at( randomNum );
+        if( currNameIndex++ == n_players ){
+            return playerNames;
+        }
 
-	// find a letter if it's there delete it !! ( this is extremely dumb shoutout hazim
-	for( int x = 0; x < vec.size( ); x++ ){
-	    if( playerName.find( vec[ x ] ) ) {
-		playerNames.push_back( playerName );
-		currNameIndex++;
-		vec.erase( vec.begin( )+x );
-	    }
-	}
+
+        int randomNum = rand( ) % allNames.size( ) + 1;
+        playerName = allNames.at( randomNum );
+
+        // find a letter if it's there delete it !! ( this is extremely dumb shoutout hazim
+        for( int x = 0; x < vec.size( ); x++ ){
+            if( playerName.find( vec[ x ] ) ) {
+                playerNames.push_back( playerName );
+                currNameIndex++;
+                vec.erase( vec.begin( )+x );
+            }
+        }
     }
 }
 
@@ -260,10 +302,10 @@ Game::generatePlayerNames( std::string word ){
 void Game::generateRoles( ChatServer* server )
 {
     if ( m_players.empty( ) ) return;
-    
+
     size_t num_of_spies;
     int random_num;
-    
+
     char temp[1024];
     size_t curr_spies = 0;
 
@@ -286,38 +328,38 @@ void Game::generateRoles( ChatServer* server )
     }
     for ( size_t i = 0; i < m_players.size( ); ++i ) {
 
-	m_players[i].setRole( roles[i] );
-	
-	//( TODO: )need a better message
-	if ( roles[i] == SPIES ) {
-	    sprintf( temp, "Your role is Spy!! You win if the agents cant find the words in %d nodes", m_nodes_agents_can_lose );
-	server->SendStringToPlayer( m_players[i].getName( ), temp ); //reminder to set the client side too
-	
-	}
-	else{
-	    sprintf( temp, "Your role is Agent!! You win if you figure out the word in less than %d nodes", m_nodes_agents_can_lose );
-	    server->SendStringToPlayer( m_players[i].getName( ), temp );
-	}
+        m_players[i].setRole( roles[i] );
+
+        //( TODO: )need a better message
+        if ( roles[i] == SPIES ) {
+            sprintf( temp, "Your role is Spy!! You win if the agents cant find the words in %d nodes", m_nodes_agents_can_lose );
+            server->SendStringToPlayer( m_players[i].getName( ), temp ); //reminder to set the client side too
+
+        }
+        else{
+            sprintf( temp, "Your role is Agent!! You win if you figure out the word in less than %d nodes", m_nodes_agents_can_lose );
+            server->SendStringToPlayer( m_players[i].getName( ), temp );
+        }
 
     }
 
 }
 
 void  Game::incReadyCount( ) { ++n_players_ready; }
-    
+
 void  Game::decReadyCount( ) { --n_players_ready; }
-    
+
 std::string Game::genWord( ) {
     std::string word;
     std::vector<std::string> wordList;
     srand( time( 0 ) );
-    
+
     // open file
     // generate word
     // wow
-    
+
     wordList = initWordsList( );
-    
+
     size_t numOfWords = wordList.size( );
     int indexOfRandom = rand( ) % numOfWords + 1;            
     return wordList.at( indexOfRandom ) ;     
