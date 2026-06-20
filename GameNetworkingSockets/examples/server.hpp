@@ -82,6 +82,7 @@ public:
 
     void PollConnectionStateChanges();
 
+    void LocalUserInput_Init();
 private:
     // server hold the game
     std::unique_ptr < Game > m_game;

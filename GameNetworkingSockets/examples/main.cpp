@@ -96,7 +96,6 @@ int main( int argc, const char *argv[] )
 
     // Create client and server sockets
     InitSteamDatagramConnectionSockets();
-    //LocalUserInput_Init();
     
     if ( bClient )
     {
@@ -121,7 +120,8 @@ int main( int argc, const char *argv[] )
 
     Printf("Number of players: %zu\n", n_players);
     ChatServer server;
-        server.Run( (uint16)nPort, n_players );
+    server.LocalUserInput_Init();
+    server.Run( (uint16)nPort, n_players );
     }
     
     ShutdownSteamDatagramConnectionSockets();

@@ -257,6 +257,32 @@ void ChatServer::PollIncomingMessages()//checklater
     }
 }
 
+
+void ChatServer::LocalUserInput_Init()
+{
+	s_pThreadUserInput = new std::thread( []()
+	{
+		while ( !g_bQuit )
+		{
+			char szLine[ 4000 ];
+			if ( !fgets( szLine, sizeof(szLine), stdin ) )
+			{
+				// Well, you would hope that you could close the handle
+				// from the other thread to trigger this.  Nope.
+				if ( g_bQuit )
+					return;
+				g_bQuit = true;
+				Printf( "Failed to read on stdin, quitting\n" );
+				break;
+			}
+
+			mutexUserInputQueue.lock();
+			queueUserInput.push( std::string( szLine ) );
+			mutexUserInputQueue.unlock();
+		}
+	} );
+}
+
 void ChatServer::PollLocalUserInput()
 {
     std::string cmd;
