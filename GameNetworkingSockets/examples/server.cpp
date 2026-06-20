@@ -220,7 +220,7 @@ void ChatServer::PollIncomingMessages()//checklater
 	    player->setName( nick );
 	    continue;
 	}
-	if ( (strcmp( cmd, "/ready" ) ) )
+	if ( (strcmp( cmd, "/ready" ) ) == 0 )
 	{
 	    Player* player = m_game->getPlayer( itClient->second );
 	    if ( !player ) continue;
@@ -233,7 +233,7 @@ void ChatServer::PollIncomingMessages()//checklater
 		player->setReady(true);
 		m_game->incReadyCount();
 
-                SendStringToAllClients(
+        SendStringToAllClients(
 		    (itClient->second + "has readied up " + std::to_string(m_game->getMaxPlayers() - m_game->getReadyCount()) + " remain.").c_str() );
 	    }
 	    continue; // try suppress local echo :(
