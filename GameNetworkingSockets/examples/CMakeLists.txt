@@ -1,7 +1,6 @@
 #
 # Trivial signaling server, written in go
 #
-    cmake_minimum_required(VERSION 4.3)
 if( ENABLE_ICE AND ( BUILD_EXAMPLES OR BUILD_TESTS ) )
 	find_program( GO go )
 	if ( NOT GO )
