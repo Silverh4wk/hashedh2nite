@@ -27,11 +27,6 @@ Player::setReady( bool ready ) { m_ready = ready; }
 void
 Player::setRole( TEAMS team ) { role = team; }
 
-void
-Player::setConnection( HSteamNetConnection conn ) {
-    m_connection = conn;
-}
-
 TEAMS
 Player::getRole ( void ) const { return role; }
 
@@ -40,11 +35,6 @@ Player::isReady()  const { return m_ready; }
 
 const std::string&
 Player::getName() const  { return m_name; }
-
-HSteamNetConnection
-Player::getConnection() const {
-    return m_connection;
-}
     
 
 
@@ -56,24 +46,21 @@ Game::init( size_t max_players )
 }
 
 void
-Game::addPlayer( const std::string& name )
+Game::addPlayer( HSteamNetConnection conn, const std::string& name )
 {
-    m_players.emplace_back( Player(name));
+    m_players[conn] = Player(name);
 }
 
 void
-Game::removePlayer( const std::string& name )
+Game::removePlayer( HSteamNetConnection conn )
 {
-    auto it = std::find_if(m_players.begin(), m_players.end(), [&name]( const Player &p )
-	{
-	    return p.getName() == name;
-	});
-
+    auto it = m_players.find( conn );
     if (it != m_players.end()) {
+        std::string name = it->second.getName();
 	m_players.erase(it);
 	Printf( "Player %s removed from the game \n", name.c_str() );
     } else {
-        Printf( "Player %s not found.", name.c_str() );
+        Printf( "Connection not found." );
     }
     
 }
@@ -83,24 +70,39 @@ Game::removePlayer( const std::string& name )
 Player*
 Game::getPlayerByName(const std::string& name)
 {
-    auto it = std::find_if(m_players.begin(), m_players.end(), [&name](const Player& p)
+    for (auto& [conn, player] : m_players)
     {
-        Printf("Comparing: stored='%s' vs searched='%s'\n", p.getName().c_str(), name.c_str());
-        return p.getName() == name;
-    });
-
-    if (it != m_players.end()) {
-        return &(*it);
-    } else {
-        Printf("Player %s not found.", name.c_str());
-        return nullptr;
+        Printf("Comparing: stored='%s' vs searched='%s'\n", player.getName().c_str(), name.c_str());
+        if (player.getName() == name)
+            return &player;
     }
+    Printf("Player %s not found.", name.c_str());
+    return nullptr;
+}
+
+Player*
+Game::getPlayerByConn( HSteamNetConnection conn )
+{
+    auto it = m_players.find( conn );
+    if (it != m_players.end()) return &it->second;
+    return nullptr;
+}
+
+HSteamNetConnection
+Game::getConnByName( const std::string& name ) const
+{
+    for (const auto& [conn, player] : m_players) {
+        if (player.getName() == name) return conn;
+    }
+    return k_HSteamNetConnection_Invalid;
 }
 
 const Player*
 Game::getPlayerByIndex(size_t index) const {
     if (index >= m_players.size()) return nullptr;
-    return &m_players[index];
+    auto it = m_players.begin();
+    std::advance(it, index);
+    return &it->second;
 }
 
 
@@ -130,7 +132,7 @@ Game::proposal_voting( std::string voter, const char* cmd, int* tallyVoteState, 
             (*voteCount)++;
 
         }
-        if(*voteCount == n_players){
+        if(*voteCount == (int)m_players.size()){
             m_current_state = STATE_PROPOSAL_VOTE_RESOLVE; 
         }
         sprintf(temp, "%s voted %d. Currently the tally is %d", voter.c_str(), playerChoice, *tallyVoteState );
@@ -177,18 +179,14 @@ void Game::playerPropose( ChatServer* server, std::string playerName )
     // Iterate and check, if player then send message...
     std::string strTemp = std::string( "%d", howManyInNode );
     sprintf( temp, "Propose %s players", strTemp.c_str( ) );
-    auto it = server->m_mapClients.begin( );
-    if ( it != server->m_mapClients.end( ) )
-        for ( auto &c :server-> m_mapClients ) {
-            if ( c.second.c_str( ) == playerName ) {
-                server->SendStringToClient( c.first, temp );
-                for ( int x = 0; x<howManyInNode; x++ ){
-                    sprintf( temp, "Enter the index of player %d", x );
-                    server->SendStringToClient( c.first, temp );
-
-                }
-            }
+    HSteamNetConnection conn = getConnByName( playerName );
+    if ( conn != k_HSteamNetConnection_Invalid ) {
+        server->SendStringToClient( conn, temp );
+        for ( int x = 0; x < howManyInNode; x++ ){
+            sprintf( temp, "Enter the index of player %d", x );
+            server->SendStringToClient( conn, temp );
         }
+    }
 }
 
 size_t
@@ -239,11 +237,6 @@ Game::setProposingPlayerIndex( int index )
 }
 
 
-size_t Game::getCurrentn_Players( void ) const
-{
-    return n_players;    
-}
-
 GAME_STATES
 Game::getState( ) const{
     return m_current_state;
@@ -256,11 +249,11 @@ Game::getProposingPlayerIndex( ) const
 }
 void
 Game::setEveryoneNick( ChatServer* server,std::vector<std::string> &players ){
-
-    for( int x = 0; x < n_players; x++ ){
-        auto it = server->m_mapClients.begin( );
-        it->second=  players[ x ];
-        it++; 
+    int x = 0;
+    for ( auto& [conn, player] : m_players ) {
+        if ( x >= (int)players.size() ) break;
+        player.setName( players[ x ] );
+        x++;
     }
 }
 
@@ -278,7 +271,7 @@ Game::generatePlayerNames( std::string word ){
 
     while( true ){
 
-        if( currNameIndex++ == n_players ){
+        if( currNameIndex++ == (int)m_players.size() ){
             return playerNames;
         }
 
@@ -312,8 +305,8 @@ void Game::generateRoles( ChatServer* server )
     std::vector<TEAMS> roles( m_players.size( ), AGENTS ); //default is agent
 
     // bomboclat
-    if(!((n_players-1) ==2)){
-        num_of_spies = ( n_players-1 )/ 2;
+    if(!(((int)m_players.size()-1) ==2)){
+        num_of_spies = ( m_players.size()-1 )/ 2;
     }
     m_nodes_agents_can_lose = m_spies.size( ) + 1;
 
@@ -326,21 +319,22 @@ void Game::generateRoles( ChatServer* server )
             curr_spies++;
         }
     }
-    for ( size_t i = 0; i < m_players.size( ); ++i ) {
+    int i = 0;
+    for ( auto& [conn, player] : m_players ) {
 
-        m_players[i].setRole( roles[i] );
+        player.setRole( roles[i] );
 
         //( TODO: )need a better message
         if ( roles[i] == SPIES ) {
             sprintf( temp, "Your role is Spy!! You win if the agents cant find the words in %d nodes", m_nodes_agents_can_lose );
-            server->SendStringToPlayer( m_players[i].getName( ), temp ); //reminder to set the client side too
+            server->SendStringToClient( conn, temp ); //reminder to set the client side too
 
         }
         else{
             sprintf( temp, "Your role is Agent!! You win if you figure out the word in less than %d nodes", m_nodes_agents_can_lose );
-            server->SendStringToPlayer( m_players[i].getName( ), temp );
+            server->SendStringToClient( conn, temp );
         }
-
+        i++;
     }
 
 }

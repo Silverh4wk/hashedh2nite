@@ -2,6 +2,7 @@
 
 #include <string>
 #include <vector>
+#include <map>
 #include "../include/steam/isteamnetworkingsockets.h"
 
 typedef enum TEAMS{
@@ -49,19 +50,16 @@ public:
     void setName( std::string name );
     void setReady( bool ready ) ;
     void setRole( TEAMS team ) ;
-    void setConnection( HSteamNetConnection conn ) ;
 
     TEAMS getRole( void ) const ;
     bool isReady( void ) const ;
     const std::string& getName( ) const;
-    HSteamNetConnection getConnection( ) const;
     
 private:
     std::string m_name;
     TEAMS role = AGENTS; //just set to agents by default when init a player
     bool m_ready = false;
     VOTESTATE m_vote = DIDNT_VOTE;
-    HSteamNetConnection m_connection; 
     
 
     };
@@ -81,22 +79,30 @@ public:
     void init( size_t max_players );
 
     void startGame( ChatServer* server );
-
-    void addPlayer( const std::string& name );
     
-    void removePlayer( const std::string& name );
+    void addPlayer( HSteamNetConnection conn, const std::string& name );
+    
+    void removePlayer( HSteamNetConnection conn );
+
+    Player* getPlayerByConn( HSteamNetConnection conn );
+
+    Player* getPlayerByName( const std::string& name );
+
+    HSteamNetConnection getConnByName( const std::string& name ) const;
+
+    template<typename F>
+    void forEachPlayer(F&& cb) {
+        for (auto& [conn, player] : m_players)
+            cb(conn, player);
+    }
 
     void playerPropose( ChatServer* server,const std::string playerName );
 
     void win( TEAMS team );
     
-    Player* getPlayerByName( const std::string& name );
-    
     size_t getMaxPlayers( void ) const;
     
     void setMaxPlayers( size_t max );
-    
-    size_t getCurrentn_Players( void ) const;
     
     void setEveryoneNick( ChatServer* server,std::vector<std::string> &players );
 
@@ -133,7 +139,7 @@ private:
     //ik we can just check the flag inside player
     //but maybe its cleaner to do it this way
     
-    std::vector<Player> m_players ;
+    std::map< HSteamNetConnection, Player > m_players ;
     std::vector<Player*> m_agents;
     std::vector<Player*> m_spies;
 
@@ -146,7 +152,6 @@ private:
     const char* second_guy;
     
 
-    size_t n_players = 0;
     size_t n_players_ready = 0;
     size_t m_max_players = 0;
 

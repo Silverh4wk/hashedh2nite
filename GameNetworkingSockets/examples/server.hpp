@@ -4,7 +4,6 @@
 #include <mutex>
 #include <queue>
 #include <thread>
-#include <map>
 #include <memory>
 #include "../include/steam/steamnetworkingsockets.h"
 #include "../include/steam/isteamnetworkingutils.h"
@@ -42,16 +41,7 @@ public:
 
     ISteamNetworkingSockets *m_pInterface;
 
-    //                                          < conn , name >
-    std::map< HSteamNetConnection, std::string  > m_mapClients; // just store the connection and the name, not the actual player 
-    
-    // (NOTE:Hazim) : Nick is going to be a member of player anyway
-    
-    // struct Client_t
-    // {
-    //     std::string m_sNick;
-    //     Player* player;
-    // };
+
     
     static void SteamNetConnectionStatusChangedCallback( SteamNetConnectionStatusChangedCallback_t *pInfo )
 	{
@@ -63,8 +53,6 @@ public:
     void KickPlayerByName(const std::string& name);
 
     void SendStringToClient( HSteamNetConnection conn, const char *str );
-    
-    void SendStringToPlayer(const std::string& player_name, const char* str); // so that we can use the player name to send messages
 
     void SendStringToAllClients( const char *str, HSteamNetConnection except = k_HSteamNetConnection_Invalid );
     

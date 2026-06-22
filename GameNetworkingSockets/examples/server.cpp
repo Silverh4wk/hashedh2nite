@@ -92,19 +92,18 @@ void ChatServer::Run( uint16 nPort, size_t max_players )
 
     // Close all the connections
     Printf( "Closing connections...\n" );
-    for ( auto it: m_mapClients )
+    m_game->forEachPlayer([this]( HSteamNetConnection conn, Player& )
     {
         // Send them one more goodbye message.  Note that we also have the
         // connection close reason as a place to send final data.  However,
         // that's usually best left for more diagnostic/debug text not actual
         // protocol strings.
-        SendStringToClient( it.first, "Server is shutting down.  Goodbye." );
+        SendStringToClient( conn, "Server is shutting down.  Goodbye." );
 
         // Close the connection.  We use "linger mode" to ask SteamNetworkingSockets
-        // to fl411		sprintf( nick, "Player%lu", 0 + ( rand() % m_game->getCurrentPlayers() +1 ) );ush this out and close gracefully.
-        m_pInterface->CloseConnection( it.first, 0, "Server Shutdown", true );
-    }
-    m_mapClients.clear();
+        // to flush this out and close gracefully.
+        m_pInterface->CloseConnection( conn, 0, "Server Shutdown", true );
+    });
 
     m_pInterface->CloseListenSocket( m_hListenSock );
     m_hListenSock = k_HSteamListenSocket_Invalid;
@@ -115,42 +114,21 @@ void ChatServer::Run( uint16 nPort, size_t max_players )
 
 void ChatServer:: KickPlayerByName(const std::string& name)
 {
-    // loop through clients and check their nick
-    for ( auto it = m_mapClients.begin(); it != m_mapClients.end(); it++ )
+    HSteamNetConnection conn = m_game->getConnByName( name );
+    if ( conn != k_HSteamNetConnection_Invalid )
     {
-	if ( it->second == name )
-	{
-	    SendStringToClient(it->first, "You have been kicked. Goodbye Creature.");
-	    // At some point probably use an exit code from here: https://partner.steamgames.com/doc/api/steamnetworkingtypes#ESteamNetConnectionEnd
-	    // Unsure of the usage of the 4th argument (bEnableLinger)
-	    m_pInterface->CloseConnection(it->first, 0, "Kicked", true);
+	SendStringToClient( conn, "You have been kicked. Goodbye Creature.");
+	// At some point probably use an exit code from here: https://partner.steamgames.com/doc/api/steamnetworkingtypes#ESteamNetConnectionEnd
+	// Unsure of the usage of the 4th argument (bEnableLinger)
+	m_pInterface->CloseConnection( conn, 0, "Kicked", true);
 
+	SendStringToAllClients((name + " was kicked.").c_str());
 
-	    SendStringToAllClients((name + " was kicked.").c_str());
-
-	    m_mapClients.erase(it);
-	    return;
-	}
+	m_game->removePlayer( conn );
+	return;
     }
 
     Printf("Player not found.");
-}
-
-
-void ChatServer::SendStringToPlayer(const std::string& player_name, const char* str)
-{
-
-    for (const auto& [conn, name] : m_mapClients)
-    {
-        if (name == player_name)
-        {
-            SendStringToClient(conn, str);
-            return;
-        }
-    }
-    
-	Printf( "Couldnt find player: %s, no string was sent", player_name.c_str() );
-    return;
 }
 
 
@@ -161,11 +139,11 @@ void ChatServer::SendStringToClient( HSteamNetConnection conn, const char *str )
 
 void ChatServer::SendStringToAllClients( const char *str, HSteamNetConnection except )
 {
-    for ( auto &c: m_mapClients )
+    m_game->forEachPlayer([this, str, except]( HSteamNetConnection conn, Player& )
     {
-	if ( c.first != except )
-	    SendStringToClient( c.first, str );
-    }
+	if ( conn != except )
+	    SendStringToClient( conn, str );
+    });
 }
 
 void ChatServer::PollIncomingMessages()//checklater
@@ -185,8 +163,9 @@ void ChatServer::PollIncomingMessages()//checklater
 	if ( numMsgs < 0 )
 	    FatalError( "Error checking for messages" );
 	assert( numMsgs == 1 && pIncomingMsg );
-	auto itClient = m_mapClients.find( pIncomingMsg->m_conn );
-	assert( itClient != m_mapClients.end() );
+	HSteamNetConnection hConn = pIncomingMsg->m_conn;
+	Player* player = m_game->getPlayerByConn( hConn );
+	assert( player != nullptr );
 
 	// '\0'-terminate it to make it easier to parse
 	std::string sCmd;
@@ -201,35 +180,30 @@ void ChatServer::PollIncomingMessages()//checklater
 
 	if ( strncmp( cmd, "/nick", 5 ) == 0 )
 	{
-	    const std::string old_nick = itClient->second;
+	    const std::string old_nick = player->getName();
 
 	    const char *nick = cmd+5;
 	    while ( isspace( *nick ) )
 		++nick;
 
 	    // Let everybody else know they changed their name
-	    itClient->second = nick;
-	    sprintf( temp, "%s shall henceforth be known as %s", itClient->second.c_str(), nick );
-	    SendStringToAllClients( temp, itClient->first );
+	    player->setName( nick );
+	    sprintf( temp, "%s shall henceforth be known as %s", player->getName().c_str(), nick );
+	    SendStringToAllClients( temp, hConn );
 
 	    // Respond to client
 	    sprintf( temp, "Ye shall henceforth be known as %s", nick );
-	    SendStringToClient( itClient->first, temp );
+	    SendStringToClient( hConn, temp );
 
 	    // Actually change their name (We getting rid of this yes ?)
-	    SetClientNick( itClient->first, nick );
-	    Player* player = m_game->getPlayerByName(old_nick);
-	    if(!player) return;
-	    player->setName( nick );
+	    SetClientNick( hConn, nick );
 	    continue;
 	}
 	if ( (strcmp( cmd, "/ready" ) ) == 0 )
 	{
-	    Player* player = m_game->getPlayerByName( itClient->second );
-	    if ( !player ) continue;
 	    if( player->isReady() )
 	    {
-		SendStringToClient(itClient->first, "Already ready..");
+		SendStringToClient(hConn, "Already ready..");
 	    }
 	    else
 	    {
@@ -237,7 +211,7 @@ void ChatServer::PollIncomingMessages()//checklater
 		m_game->incReadyCount();
 
         SendStringToAllClients(
-		    (itClient->second + "has readied up " + std::to_string(m_game->getMaxPlayers() - m_game->getReadyCount()) + " remain.").c_str() );
+		    (player->getName() + "has readied up " + std::to_string(m_game->getMaxPlayers() - m_game->getReadyCount()) + " remain.").c_str() );
 	    }
 	    continue; // try suppress local echo :(
 	}
@@ -252,9 +226,8 @@ void ChatServer::PollIncomingMessages()//checklater
 
  int playerChoice;
     if(m_game->getState() == STATE_PROPOSAL_VOTING_WAIT){
-        auto itClient = m_mapClients.find( pIncomingMsg->m_conn );
         // unsure if tallyVoteState and voteCount can be moved to be owned by game
-        m_game->proposal_voting(itClient->second, cmd, &tallyVoteState, &voteCount, this); 
+        m_game->proposal_voting(player->getName(), cmd, &tallyVoteState, &voteCount, this); 
        }
 
 
@@ -262,10 +235,10 @@ void ChatServer::PollIncomingMessages()//checklater
 	// and only limit communication to those
 	// Assume it's just a ordinary chat message, dispatch to everybody else
 
-	sprintf( temp, "%s: %s", itClient->second.c_str(), cmd );
-	sprintf(tempToClient, "(you) %s: %s", itClient->second.c_str(), cmd);
-	SendStringToAllClients( temp, itClient->first );
-	SendStringToClient( itClient->first, tempToClient ); 
+	sprintf( temp, "%s: %s", player->getName().c_str(), cmd );
+	sprintf(tempToClient, "(you) %s: %s", player->getName().c_str(), cmd);
+	SendStringToAllClients( temp, hConn );
+	SendStringToClient( hConn, tempToClient ); 
     }
 }
 
@@ -330,10 +303,6 @@ void ChatServer::PollLocalUserInput()
 
 void ChatServer::SetClientNick( HSteamNetConnection hConn, const char *nick )
 {
-
-    // Remember their nick
-    m_mapClients[hConn] = nick;
-    
     // Set the connection name, too, which is useful for debugging
     m_pInterface->SetConnectionName( hConn, nick );
 }
@@ -360,24 +329,24 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	    // Locate the client.  Note that it should have been found, because this
 	    // is the only codepath where we remove clients (except on shutdown),
 	    // and connection change callbacks are dispatched in queue order.
-	    auto itClient = m_mapClients.find( pInfo->m_hConn );
-	    assert( itClient != m_mapClients.end() );
+	    Player* player = m_game->getPlayerByConn( pInfo->m_hConn );
+	    assert( player != nullptr );
 
 	    // Select appropriate log messages
 	    const char *pszDebugLogAction;
 	    if ( pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally )
 	    {
 		pszDebugLogAction = "problem detected locally";
-		//m_game->removePlayer(itClient->first);
-                sprintf( temp, "Alas, %s hath fallen into shadow.  (%s)", itClient->second.c_str(), pInfo->m_info.m_szEndDebug );
+		m_game->removePlayer( pInfo->m_hConn );
+                sprintf( temp, "Alas, %s hath fallen into shadow.  (%s)", player->getName().c_str(), pInfo->m_info.m_szEndDebug );
 	    }
 	    else
 	    {
 		// Note that here we could check the reason code to see if
 		// it was a "usual" connection or an "unusual" one.
 		pszDebugLogAction = "closed by peer";
-		//m_game->removePlayer(itClient->first);
-		sprintf( temp, "%s hath departed", itClient->second.c_str() );
+		m_game->removePlayer( pInfo->m_hConn );
+		sprintf( temp, "%s hath departed", player->getName().c_str() );
 	    }
 
 	    // Spew something to our own log.  Note that because we put their nick
@@ -390,8 +359,6 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 		    pInfo->m_info.m_szEndDebug
 		);
 
-
-	    m_mapClients.erase( itClient );
 
 	    // Send a message so everybody else knows what happened
 	    SendStringToAllClients( temp );
@@ -415,7 +382,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
     {
 	// This must be a new connection
 
-	assert( m_mapClients.find( pInfo->m_hConn ) == m_mapClients.end() );
+	assert( m_game->getPlayerByConn( pInfo->m_hConn ) == nullptr );
 
 	Printf( "Connection request from %s", pInfo->m_info.m_szConnectionDescription );
 
@@ -446,36 +413,33 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	// but not logged on) until them.  I'm trying to keep this example
 	// code really simple.
 	char nick[ 64 ];
-    long no_of_currently_joined_players = m_game->getCurrentn_Players() + 1;
+    long no_of_currently_joined_players = m_game->getCurrentPlayers() + 1;
 
 	sprintf( nick, "Player%lu", 0 + ( rand() % no_of_currently_joined_players + 1 ) );
 
-	m_game->addPlayer( nick );
+	m_game->addPlayer( pInfo->m_hConn, nick );
 	// Send them a welcome message
 	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 
 	SendStringToClient( pInfo->m_hConn, temp ); 
-	// gonna store the player connection too when we add a player
-	Player* player = m_game->getPlayerByName(nick);
-    if(!player) Printf("crash?");
-	if (player) player->setConnection(pInfo->m_hConn);
+
 	// Also send them a list of everybody who is already connected
-	if ( m_mapClients.empty() )
+	if ( m_game->getCurrentPlayers() == 0 )
 	{
 	    SendStringToClient( pInfo->m_hConn, "Thou art utterly alone." ); 
 	}
 	else
 	{
-	    sprintf( temp, "%d companions greet you:", (int)m_mapClients.size() ); 
-	    for ( auto &c: m_mapClients )
-		SendStringToClient( pInfo->m_hConn, c.second.c_str() ); 
+	    sprintf( temp, "%d companions greet you:", (int)m_game->getCurrentPlayers() ); 
+	    m_game->forEachPlayer([this, pInfo]( HSteamNetConnection conn, Player& player ) {
+		if ( conn != pInfo->m_hConn )
+		    SendStringToClient( pInfo->m_hConn, player.getName().c_str() );
+	    });
 	}
 
 	// Let everybody else know who they are for now
 	sprintf( temp, "Hark!  A stranger hath joined this merry host.  For now we shall call them '%s'", nick ); 
 	SendStringToAllClients( temp, pInfo->m_hConn ); 
 
-	// Add them to the client list, using std::map wacky syntax
-	m_mapClients[ pInfo->m_hConn ];
 	SetClientNick( pInfo->m_hConn, nick );
 	break;
     }
