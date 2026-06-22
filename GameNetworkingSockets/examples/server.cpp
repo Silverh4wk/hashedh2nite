@@ -413,9 +413,9 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	// but not logged on) until them.  I'm trying to keep this example
 	// code really simple.
 	char nick[ 64 ];
-    long no_of_currently_joined_players = m_game->getCurrentPlayers() + 1;
+    size_t playerCount = m_game->getCurrentPlayers();
 
-	sprintf( nick, "Player%lu", 0 + ( rand() % no_of_currently_joined_players + 1 ) );
+	sprintf( nick, "Player%zu", playerCount + 1 );
 
 	m_game->addPlayer( pInfo->m_hConn, nick );
 	// Send them a welcome message
