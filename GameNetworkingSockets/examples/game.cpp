@@ -13,8 +13,8 @@ void
 Player::setVote( VOTESTATE vote ) {this->m_vote = vote;}
 
 Player::Player(std::string initName){
-    Printf("hello");
     this->m_name =initName;
+    Printf((initName +": hello").c_str());
 }
 
 Player::Player() : m_name("") {}  
@@ -36,7 +36,6 @@ Player::isReady()  const { return m_ready; }
 const std::string&
 Player::getName() const  { return m_name; }
     
-
 
 void
 Game::init( size_t max_players )
@@ -66,7 +65,6 @@ Game::removePlayer( HSteamNetConnection conn )
 }
 
 
-
 Player*
 Game::getPlayerByName(const std::string& name)
 {
@@ -80,20 +78,16 @@ Game::getPlayerByName(const std::string& name)
     return nullptr;
 }
 
-Player*
-Game::getPlayerByConn( HSteamNetConnection conn )
+HSteamNetConnection 
+Game::findConnectionByName(const std::string& name)
 {
-    auto it = m_players.find( conn );
-    if (it != m_players.end()) return &it->second;
-    return nullptr;
-}
-
-HSteamNetConnection
-Game::getConnByName( const std::string& name ) const
-{
-    for (const auto& [conn, player] : m_players) {
-        if (player.getName() == name) return conn;
+    for (auto& [conn, player] : m_players)
+    {
+        Printf("Comparing: stored='%s' vs searched='%s'\n", player.getName().c_str(), name.c_str());
+        if (player.getName() == name)
+            return conn;
     }
+    Printf("Player connection handle %s not found.", name.c_str());
     return k_HSteamNetConnection_Invalid;
 }
 
@@ -104,7 +98,6 @@ Game::getPlayerByIndex(size_t index) const {
     std::advance(it, index);
     return &it->second;
 }
-
 
 
 void
@@ -143,11 +136,10 @@ Game::proposal_voting( std::string voter, const char* cmd, int* tallyVoteState, 
         playerChoice = -1;
 
 
-
-
     }
 }
-    void
+
+void
 Game::startGame( ChatServer* server )
 {
     m_node = 0;   
@@ -155,19 +147,17 @@ Game::startGame( ChatServer* server )
 
     std::vector<std::string> playerNames;
     std::string word = genWord( );
-
-    playerNames = generatePlayerNames( word );
-
-    //setEveryoneNick( server, playerNames );
-
-    // get the roles
-    generateRoles( server );
-
+    if(!word.empty())
+    {
+	playerNames = generatePlayerNames( word );
+	generateRoles( server );
+    }
     //server->SendStringToAllClients( currentNode( ) );
 
 }
 
-void Game::playerPropose( ChatServer* server, std::string playerName )
+void
+Game::playerPropose( ChatServer* server, const HSteamNetConnection *hconn )
 {
     char temp[1024];
     int howManyInNode = 2;
@@ -175,16 +165,14 @@ void Game::playerPropose( ChatServer* server, std::string playerName )
     if ( m_node > 2 ) {
         howManyInNode = 3;
     }
-
     // Iterate and check, if player then send message...
     std::string strTemp = std::string( "%d", howManyInNode );
-    sprintf( temp, "Propose %s players", strTemp.c_str( ) );
-    HSteamNetConnection conn = getConnByName( playerName );
-    if ( conn != k_HSteamNetConnection_Invalid ) {
-        server->SendStringToClient( conn, temp );
+    sprintf( temp, "Propose %s players to enter the node with you >", strTemp.c_str( ) );
+    if ( *hconn != k_HSteamNetConnection_Invalid ) {
+        server->SendStringToClient( *hconn, temp );
         for ( int x = 0; x < howManyInNode; x++ ){
             sprintf( temp, "Enter the index of player %d", x );
-            server->SendStringToClient( conn, temp );
+            server->SendStringToClient( *hconn, temp );
         }
     }
 }
@@ -201,7 +189,7 @@ Game::getCurrentPlayers( ) const
     return m_players.size(); 
 }
 
-    void
+void
 Game::win( TEAMS team )
 {
     if( team == AGENTS ){
@@ -213,24 +201,25 @@ Game::win( TEAMS team )
 
 }
 
-size_t Game::getMaxPlayers ( void ) const
+size_t
+Game::getMaxPlayers ( void ) const
 {
     return m_max_players;    
 }
 
-    void
+void
 Game::setMaxPlayers( size_t max )
 {
     m_max_players = max;
 }
 
-    void
+void
 Game::setState( GAME_STATES state )
 {
     m_current_state = state;
 }
 
-    void
+void
 Game::setProposingPlayerIndex( int index )
 {
     m_player_currently_proposing = index;
@@ -247,6 +236,13 @@ Game::getProposingPlayerIndex( ) const
 {
     return m_player_currently_proposing;
 }
+
+std::map< HSteamNetConnection, Player > &
+Game::getPlayersMap() 
+{
+    return this->m_players;
+}
+
 void
 Game::setEveryoneNick( ChatServer* server,std::vector<std::string> &players ){
     int x = 0;
@@ -353,8 +349,10 @@ std::string Game::genWord( ) {
     // wow
 
     wordList = initWordsList( );
-
-    size_t numOfWords = wordList.size( );
-    int indexOfRandom = rand( ) % numOfWords + 1;            
-    return wordList.at( indexOfRandom ) ;     
+    if(!wordList.empty()){
+	size_t numOfWords = wordList.size( );
+	int indexOfRandom = rand( ) % numOfWords + 1;
+	return wordList.at( indexOfRandom ) ;     
+    }
+    return {};
 }

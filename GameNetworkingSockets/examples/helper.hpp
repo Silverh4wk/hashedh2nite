@@ -82,7 +82,8 @@
 	DebugOutput( k_ESteamNetworkingSocketsDebugOutputType_Bug, text );
 }
 
- std::vector<std::string>  inline initWordsList(std::string file_name = "wordlist.txt") {
+ std::vector<std::string>
+ inline initWordsList(std::string file_name = "wordlist.txt") {
 
     std::fstream myfile(file_name.c_str());
 
@@ -108,10 +109,11 @@
    }
    else
    {
-       Printf("Unable to open file\n");
+       Printf("Unable to open file: %s\n", file_name.c_str());
+       return {};  
    }
-   
-   exit(0);
+
+   //exit(0);
 }
 
 

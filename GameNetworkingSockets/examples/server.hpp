@@ -41,8 +41,6 @@ public:
 
     ISteamNetworkingSockets *m_pInterface;
 
-
-    
     static void SteamNetConnectionStatusChangedCallback( SteamNetConnectionStatusChangedCallback_t *pInfo )
 	{
 	    s_pCallbackInstance->OnSteamNetConnectionStatusChanged( pInfo );
@@ -50,7 +48,7 @@ public:
  
     void Run( uint16 nPort, size_t max_players );
    
-    void KickPlayerByName(const std::string& name);
+    void KickPlayer(const HSteamNetConnection hconn);
 
     void SendStringToClient( HSteamNetConnection conn, const char *str );
 

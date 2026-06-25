@@ -46,13 +46,13 @@ public:
     Player();
     Player (std::string);
     VOTESTATE getVote( void ) ;
-    void  setVote( VOTESTATE vote ) ;
+    void setVote( VOTESTATE vote ) ;
     void setName( std::string name );
     void setReady( bool ready ) ;
     void setRole( TEAMS team ) ;
 
     TEAMS getRole( void ) const ;
-    bool isReady( void ) const ;
+    bool  isReady( void ) const ;
     const std::string& getName( ) const;
     
 private:
@@ -60,8 +60,6 @@ private:
     TEAMS role = AGENTS; //just set to agents by default when init a player
     bool m_ready = false;
     VOTESTATE m_vote = DIDNT_VOTE;
-    
-
     };
 
 // forward declaration
@@ -84,11 +82,7 @@ public:
     
     void removePlayer( HSteamNetConnection conn );
 
-    Player* getPlayerByConn( HSteamNetConnection conn );
-
     Player* getPlayerByName( const std::string& name );
-
-    HSteamNetConnection getConnByName( const std::string& name ) const;
 
     template<typename F>
     void forEachPlayer(F&& cb) {
@@ -96,7 +90,7 @@ public:
             cb(conn, player);
     }
 
-    void playerPropose( ChatServer* server,const std::string playerName );
+    void playerPropose( ChatServer* server,const HSteamNetConnection *hconn );
 
     void win( TEAMS team );
     
@@ -129,17 +123,20 @@ public:
     GAME_STATES getState() const ;
 
     const Player* getPlayerByIndex(size_t index) const;
-
     
     int getProposingPlayerIndex() const; 
 
-    void proposal_voting(std::string voter, const char* cmd, int* tallyVoteState, int* voteCount, ChatServer* server);
+    std::map< HSteamNetConnection, Player >& getPlayersMap() ;
 
+    HSteamNetConnection findConnectionByName(const std::string& name);
+	
+    void proposal_voting(std::string voter, const char* cmd, int* tallyVoteState, int* voteCount, ChatServer* server);
+    
 private:
     //ik we can just check the flag inside player
     //but maybe its cleaner to do it this way
     
-    std::map< HSteamNetConnection, Player > m_players ;
+    std::map<HSteamNetConnection,Player> m_players ;
     std::vector<Player*> m_agents;
     std::vector<Player*> m_spies;
 
