@@ -51,6 +51,24 @@ void ChatClient:: PollIncomingMessages()
 	if (  msg.find("Your role is Spy") != std::string::npos  )
 	    m_player.setRole(SPIES);
 	
+	if ( msg.rfind("/playerlist:", 0) == 0 )
+	{
+	    std::string list = msg.substr(12);
+	    std::lock_guard<std::mutex> lock(m_playerMutex);
+	    m_connectedPlayers.clear();
+	    size_t pos = 0;
+	    while (pos < list.size())
+	    {
+		size_t comma = list.find(',', pos);
+		if (comma == std::string::npos)
+		    comma = list.size();
+		m_connectedPlayers.push_back(list.substr(pos, comma - pos));
+		pos = comma + 1;
+	    }
+	    pIncomingMsg->Release();
+	    continue;
+	}
+	
         pushIncomingMessage(msg);   
 	// We don't need this anymore.
 	pIncomingMsg->Release();

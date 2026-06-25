@@ -50,8 +50,13 @@ void RunNcursesFormClient(const char* serverAddrStr)
     int maxy, maxx;
     getmaxyx(stdscr, maxy, maxx);
 
-    WINDOW* chatWin  = newwin(maxy - 3, maxx, 0, 0);
-    WINDOW* inputWin = newwin(3, maxx, maxy - 3, 0);
+    const int PLAYER_WIDTH = 20;
+    // we can create windows here, then set them up down probably
+    WINDOW* chatWin    = newwin(maxy - 3, maxx - PLAYER_WIDTH, 0, 0);
+    WINDOW* playersWin = newwin(maxy - 3, PLAYER_WIDTH, 0, maxx - PLAYER_WIDTH); 
+    // or have it grow with each player in length
+    
+    WINDOW* inputWin   = newwin(3, maxx, maxy - 3, 0);
 
     scrollok(chatWin, TRUE);
     keypad(inputWin, TRUE);
@@ -94,6 +99,25 @@ void RunNcursesFormClient(const char* serverAddrStr)
             }
         }
         wrefresh(chatWin);
+
+        werase(playersWin);
+        box(playersWin, 0, 0);
+        {
+            std::lock_guard<std::mutex> lock(client.m_playerMutex);
+            mvwprintw(playersWin, 0, 2, " Players(%zu) ", client.m_connectedPlayers.size());
+
+            int ph, pw;
+            getmaxyx(playersWin, ph, pw);
+            int maxVisible = ph - 2;
+            int start = std::max(0, (int)client.m_connectedPlayers.size() - maxVisible);
+
+            for (int i = 0; i < maxVisible && (start + i) < (int)client.m_connectedPlayers.size(); ++i)
+            {
+                std::string name = clipToWidth(client.m_connectedPlayers[start + i], pw - 2);
+                mvwprintw(playersWin, i + 1, 1, "%s", name.c_str());
+            }
+        }
+        wrefresh(playersWin);
 
         // ---- Input handling ----
         int ch = wgetch(inputWin);
@@ -151,6 +175,7 @@ void RunNcursesFormClient(const char* serverAddrStr)
     networkThread.join();
 
     delwin(chatWin);
+    delwin(playersWin);
     delwin(inputWin);
     endwin();
     system("stty sane");   

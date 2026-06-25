@@ -53,6 +53,10 @@ public:
     void SendStringToClient( HSteamNetConnection conn, const char *str );
 
     void SendStringToAllClients( const char *str, HSteamNetConnection except = k_HSteamNetConnection_Invalid );
+
+    void SendPlayerListToClient( HSteamNetConnection conn );
+
+    void BroadcastPlayerList();
     
     void PollIncomingMessages();
      

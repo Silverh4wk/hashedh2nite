@@ -134,6 +134,7 @@ void ChatServer:: KickPlayer(const HSteamNetConnection hconn)
 	SendStringToAllClients((player_name  + (" was kicked.")).c_str());
 
 	m_game->removePlayer( hconn );
+	BroadcastPlayerList();
 	return;
 	}
     }
@@ -153,6 +154,25 @@ void ChatServer::SendStringToAllClients( const char *str, HSteamNetConnection ex
     {
 	if ( conn != except )
 	    SendStringToClient( conn, str );
+    });
+}
+
+void ChatServer::SendPlayerListToClient( HSteamNetConnection conn )
+{
+    std::string msg = "/playerlist:";
+    bool first = true;
+    m_game->forEachPlayer([&]( HSteamNetConnection, Player& player ) {
+        if ( !first ) msg += ",";
+        msg += player.getName();
+        first = false;
+    });
+    SendStringToClient( conn, msg.c_str() );
+}
+
+void ChatServer::BroadcastPlayerList()
+{
+    m_game->forEachPlayer([this]( HSteamNetConnection conn, Player& ) {
+        SendPlayerListToClient( conn );
     });
 }
 
@@ -215,6 +235,7 @@ void ChatServer::PollIncomingMessages()//checklater
 	    
 	    // Actually change their name (We getting rid of this yes ?)
 	    SetClientNick( hConn, nick );
+	    BroadcastPlayerList();
 	    continue;
 	}
 	if ( (strcmp( cmd, "/ready" ) ) == 0 )
@@ -391,6 +412,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 
 	    // Send a message so everybody else knows what happened
 	    SendStringToAllClients( temp );
+	    BroadcastPlayerList();
 	}
 	else
 	{
@@ -447,6 +469,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	sprintf( nick, "Player%zu", playerCount + 1 );
 
 	m_game->addPlayer( pInfo->m_hConn, nick );
+	BroadcastPlayerList();
 	// Send them a welcome message
 	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 
 	SendStringToClient( pInfo->m_hConn, temp ); 

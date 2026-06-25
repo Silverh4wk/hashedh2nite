@@ -4,6 +4,7 @@
 #include <string>
 #include <mutex>
 #include <queue>
+#include <vector>
 #include "game.h"
 #include "../include/steam/steamnetworkingsockets.h"
 #include "../include/steam/isteamnetworkingutils.h"
@@ -38,6 +39,9 @@ public:
     
     std::mutex m_outgoingMutex;
     std::mutex m_incomingMutex;
+    
+    std::vector<std::string> m_connectedPlayers;
+    std::mutex m_playerMutex;
     
     static void SteamNetConnectionStatusChangedCallback( SteamNetConnectionStatusChangedCallback_t *pInfo )
 	{
