@@ -137,6 +137,10 @@ private:
     //but maybe its cleaner to do it this way
     
     std::map<HSteamNetConnection,Player> m_players ;
+    // NOTE:silver/ look i know that u said u dont like having more than one DS BUT
+    //  i wanna show two 'lobby' boxes:
+    //  agents
+    //  hackers , if they are one to see who they with
     std::vector<Player*> m_agents;
     std::vector<Player*> m_spies;
 

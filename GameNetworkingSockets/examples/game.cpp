@@ -3,6 +3,7 @@
 #include "game.h"
 #include "server.hpp"
 #include <algorithm>
+#include <random>
 #include <cstddef>
 
 
@@ -292,48 +293,58 @@ void Game::generateRoles( ChatServer* server )
 {
     if ( m_players.empty( ) ) return;
 
+    // if players decide to go again.
+    // clear the list and start over
+    m_spies.clear();
+    m_agents.clear();
+    
+    std::vector<Player*> players; // temp container to shuffle the list of players
+    
     size_t num_of_spies;
-    int random_num;
-
+    
     char temp[1024];
-    size_t curr_spies = 0;
-
-    std::vector<TEAMS> roles( m_players.size( ), AGENTS ); //default is agent
-
+    
     // bomboclat
-    if(!(((int)m_players.size()-1) ==2)){
+    if(!(((int)m_players.size()-1) ==2)){ // TODO: check this again cuz ???
         num_of_spies = ( m_players.size()-1 )/ 2;
     }
-    m_nodes_agents_can_lose = m_spies.size( ) + 1;
+    
+    m_nodes_agents_can_lose = num_of_spies + 1;
+    
+    forEachPlayer([&](HSteamNetConnection, Player& player) {
+	players.push_back(&player); // put all players inside this vector
+    });
 
-    while ( curr_spies < num_of_spies )
+    
+    // some witchcraft (need to use more of cpp stuff this is cool)
+    std::shuffle(players.begin(), players.end(), std::mt19937(std::random_device{}())); 
+    HSteamNetConnection conn;
+
+    // set player roles 
+    for (size_t i = 0; i < players.size(); ++i)
     {
-        int index = rand( ) % m_players.size( );
-        if ( roles[index] != SPIES )
-        {
-            roles[index] = SPIES;
-            curr_spies++;
-        }
+	if (i < num_of_spies)
+	{
+	    players[i]->setRole(SPIES);
+	    m_spies.push_back(players[i]);
+	    //TODO: stil needs a better message for spies
+	    sprintf( temp, "Your role is Spy!! You win if the agents cant find the words in %d nodes", m_nodes_agents_can_lose );
+	    conn = findConnectionByName(players[i]->getName()); // NOTE:SILVER/ can i please store each player connection , will make stuff simpler i think
+	    server->SendStringToClient( conn, temp );
+	}
+	else
+	{ // now set the rest to agents once spies are done
+	    players[i]->setRole(AGENTS); 
+	    m_agents.push_back(players[i]);
+	    sprintf( temp, "Your role is Agent!! You win if you figure out the word in less than %d nodes", m_nodes_agents_can_lose );
+	    conn = findConnectionByName(players[i]->getName());
+	    server->SendStringToClient( conn, temp );
+	}
     }
-    int i = 0;
-    for ( auto& [conn, player] : m_players ) {
-
-        player.setRole( roles[i] );
-
-        //( TODO: )need a better message
-        if ( roles[i] == SPIES ) {
-            sprintf( temp, "Your role is Spy!! You win if the agents cant find the words in %d nodes", m_nodes_agents_can_lose );
-            server->SendStringToClient( conn, temp ); //reminder to set the client side too
-
-        }
-        else{
-            sprintf( temp, "Your role is Agent!! You win if you figure out the word in less than %d nodes", m_nodes_agents_can_lose );
-            server->SendStringToClient( conn, temp );
-        }
-        i++;
-    }
-
+    
 }
+
+
 
 void  Game::incReadyCount( ) { ++n_players_ready; }
 
