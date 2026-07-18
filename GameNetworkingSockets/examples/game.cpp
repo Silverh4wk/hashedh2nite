@@ -135,17 +135,14 @@ Game::proposal_voting( std::string voter, const char* cmd, int* tallyVoteState, 
 
 
         playerChoice = -1;
-
-
     }
 }
 
 void
-Game::startGame( ChatServer* server )
+Game::startGame( ChatServer* server ) // we need to add some guards here
+                                     //or some loops to get the game actually running if it fails first time
 {
     m_node = 0;   
-    m_current_state = STATE_START;
-
     std::vector<std::string> playerNames;
     std::string word = genWord( );
     if(!word.empty())
@@ -153,6 +150,8 @@ Game::startGame( ChatServer* server )
 	playerNames = generatePlayerNames( word );
 	generateRoles( server );
     }
+
+    m_current_state = STATE_START;
     //server->SendStringToAllClients( currentNode( ) );
 
 }

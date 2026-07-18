@@ -16,7 +16,7 @@ void ChatClient::Run( const SteamNetworkingIPAddr &serverAddr )
     m_hConnection = m_pInterface->ConnectByIPAddress( serverAddr, 1, &opt );
     if ( m_hConnection == k_HSteamNetConnection_Invalid )
 	FatalError( "Failed to create connection" );
-
+ 
     while ( !g_bQuit )
     {
 	PollIncomingMessages();
@@ -65,6 +65,15 @@ void ChatClient:: PollIncomingMessages()
 		m_connectedPlayers.push_back(list.substr(pos, comma - pos));
 		pos = comma + 1;
 	    }
+	    pIncomingMsg->Release();
+	    continue;
+	}
+
+	//fill the client name from the server (will look for a cleaner way to do this at somepoint)
+	if(msg.rfind("/playername:",0) == 0)
+	{
+	    std::string name = msg.substr(12);
+	    this->m_player.setName(name);
 	    pIncomingMsg->Release();
 	    continue;
 	}

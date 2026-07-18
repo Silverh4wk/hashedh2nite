@@ -28,6 +28,7 @@
 class ChatClient
 {
 public:
+    ChatClient () = default;
     // each client hold the player
     Player m_player; //store the player details 
     HSteamNetConnection m_hConnection;

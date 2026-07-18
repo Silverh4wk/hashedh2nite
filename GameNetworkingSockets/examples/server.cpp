@@ -11,6 +11,7 @@
 #include <cctype>
 #include <sstream>
 #include <fstream>
+#include "game.h"
 #include "server.hpp"
 #include "helper.hpp"
 #include <assert.h>
@@ -30,6 +31,7 @@ void ChatServer::Run( uint16 nPort, size_t max_players )
     //create the game and init its status
     m_game = std::make_unique < Game >(  );
     m_game->init( max_players );
+    m_game->setState(STATE_GAMEINIT);
     m_game->setMaxPlayers( max_players );
 
     // Select instance to use.  For now we'll always use the default.
@@ -216,12 +218,23 @@ void ChatServer::PollIncomingMessages()//checklater
 	if ( strncmp( cmd, "/nick", 5 ) == 0 )
 	{
 	    const std::string old_nick = player->getName();
-
+	    size_t nick_char_count = 0;
 	    const char *nick = cmd+5;
 	    
 	    while ( isspace( *nick ) )
+	    {
+		++nick_char_count;
 		++nick;
-	    
+	    }
+
+	    if(nick_char_count<1)
+	    {
+		sprintf(temp,"Nick cannot be empty, nickname remain [%s]", old_nick.c_str());
+		SendStringToClient(hConn,temp);
+		continue;
+	    }
+	    else
+	    {
 	    // Let everybody else know they changed their name
 	    player_name = nick;
 	    player->setName( nick );
@@ -232,11 +245,14 @@ void ChatServer::PollIncomingMessages()//checklater
 	    // Respond to client
 	    sprintf( temp, "Ye shall henceforth be known as %s", nick );
 	    SendStringToClient( hConn, temp );
+	    sprintf( temp, "/playername:%s", nick );
+	    SendStringToClient( hConn, temp );
 	    
 	    // Actually change their name (We getting rid of this yes ?)
 	    SetClientNick( hConn, nick );
 	    BroadcastPlayerList();
 	    continue;
+	    }
 	}
 	if ( (strcmp( cmd, "/ready" ) ) == 0 )
 	{
@@ -250,13 +266,14 @@ void ChatServer::PollIncomingMessages()//checklater
 		m_game->incReadyCount();
 
         SendStringToAllClients(
-		    (player_name + "has readied up " + std::to_string(m_game->getMaxPlayers() - m_game->getReadyCount()) + " remain.").c_str() );
+		    (player_name + " has readied up " + std::to_string(m_game->getMaxPlayers() - m_game->getReadyCount()) + " remain.").c_str() );
 	    }
 	    continue; // try suppress local echo :(
 	}
 
 	// if no. of players == lobby players, start game..
-	if ( m_game->getReadyCount() == m_game->getMaxPlayers() )
+	
+	if ( m_game->getReadyCount() == m_game->getMaxPlayers() && m_game->getState() == STATE_GAMEINIT )
 	{
 	    SendStringToAllClients("All players ready! Starting game...");
 	    m_game->startGame( this );
@@ -381,7 +398,7 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	    // and connection change callbacks are dispatched in queue order.
 	    Player* player = &map.at(pInfo->m_hConn);
 	    assert( player != nullptr );
-
+	    
 	    // Select appropriate log messages
 	    const char *pszDebugLogAction;
 	    if ( pInfo->m_info.m_eState == k_ESteamNetworkingConnectionState_ProblemDetectedLocally )
@@ -432,11 +449,11 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
     case k_ESteamNetworkingConnectionState_Connecting:
     {
 	// This must be a new connection
-
+	
 	assert(m_game->getPlayersMap().find(pInfo->m_hConn) == m_game->getPlayersMap().end());
 
 	Printf( "Connection request from %s", pInfo->m_info.m_szConnectionDescription );
-
+	
 	// A client is attempting to connect
 	// Try to accept the connection.
 	if ( m_pInterface->AcceptConnection( pInfo->m_hConn ) != k_EResultOK )
@@ -469,10 +486,17 @@ void ChatServer::OnSteamNetConnectionStatusChanged( SteamNetConnectionStatusChan
 	sprintf( nick, "Player%zu", playerCount + 1 );
 
 	m_game->addPlayer( pInfo->m_hConn, nick );
+	
+    
 	BroadcastPlayerList();
 	// Send them a welcome message
-	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick ); 
-	SendStringToClient( pInfo->m_hConn, temp ); 
+	sprintf( temp, "Welcome, stranger.  Thou art known to us for now as '%s'; upon thine command '/nick' we shall know thee otherwise.", nick );
+	
+	//fill the client name from the server (will look for a cleaner way to do this at somepoint)
+	   std::string msg = "/playername:";
+	   msg += nick;
+	   SendStringToClient( pInfo->m_hConn, msg.c_str());
+	   SendStringToClient( pInfo->m_hConn, temp ); 
 
 	// Also send them a list of everybody who is already connected
 	if ( m_game->getCurrentPlayers() == 0 )
